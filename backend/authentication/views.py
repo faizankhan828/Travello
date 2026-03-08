@@ -838,6 +838,7 @@ def admin_login(request):
 def chat(request):
     """Handle chat messages with AI — no authentication required."""
     message = request.data.get('message', '').strip()
+    session_id = request.data.get('session_id', 'default')
 
     if not message:
         return Response(
@@ -845,16 +846,23 @@ def chat(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    response = get_ai_response(message)
+    # Pass session_id for conversation history and user for booking
+    user = request.user if request.user.is_authenticated else None
+    response = get_ai_response(message, session_id=session_id, user=user)
 
     if response.get('status') == 'success':
         data = {'reply': response['reply']}
-        # Include optional metadata
         if response.get('model'):
             data['model'] = response['model']
         if response.get('emotion_detected'):
             data['emotion'] = response['emotion_detected']
             data['confidence'] = response.get('confidence')
+        if response.get('booking_flow'):
+            data['booking_flow'] = response['booking_flow']
+        if response.get('has_hotels'):
+            data['has_hotels'] = True
+        if response.get('booking_id'):
+            data['booking_id'] = response['booking_id']
         return Response(data)
     else:
         return Response(
@@ -1265,34 +1273,3 @@ def admin_login(request):
             'Error processing login',
             status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def chat(request):
-    """Handle chat messages with AI — no authentication required."""
-    message = request.data.get('message', '').strip()
-
-    if not message:
-        return Response(
-            {'error': 'Message is required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    response = get_ai_response(message)
-
-    if response.get('status') == 'success':
-        data = {'reply': response['reply']}
-        # Include optional metadata
-        if response.get('model'):
-            data['model'] = response['model']
-        if response.get('emotion_detected'):
-            data['emotion'] = response['emotion_detected']
-            data['confidence'] = response.get('confidence')
-        return Response(data)
-    else:
-        return Response(
-            {'error': response.get('error', 'Something went wrong')},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-

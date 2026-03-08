@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FaWifi, FaParking, FaStar, FaSearch, FaMapMarkerAlt, FaUtensils, FaClock } from 'react-icons/fa';
+import { FaWifi, FaParking, FaStar, FaSearch, FaMapMarkerAlt, FaUtensils, FaClock, FaArrowLeft } from 'react-icons/fa';
 import { hotelAPI } from '../services/api';
 
 const HotelsList = () => {
@@ -57,6 +57,15 @@ const HotelsList = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-6 sm:py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
+        {/* Back to Dashboard */}
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
+        >
+          <FaArrowLeft className="text-xs" />
+          Back to Dashboard
+        </button>
+
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white mb-2">

@@ -186,17 +186,22 @@ export const authAPI = {
 };
 
 export const chatAPI = {
-  sendMessage: (message) => {
-    return axios.post(`${API_BASE_URL}/auth/chat/`, { message }, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      timeout: 30000, // 30 seconds for AI responses
-    }).catch(error => {
+  sendMessage: (message, sessionId = 'default') => {
+    const headers = { 'Content-Type': 'application/json' };
+    // Attach auth token if available so backend can create bookings
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return axios.post(
+      `${API_BASE_URL}/auth/chat/`,
+      { message, session_id: sessionId },
+      { headers, timeout: 30000 },
+    ).catch(error => {
       console.error('Chat error:', error);
       throw {
         message: error.response?.data?.error || 'Failed to get response. Please try again.',
-        status: error.response?.status || 'error'
+        status: error.response?.status || 'error',
       };
     });
   },
@@ -255,6 +260,7 @@ export const bookingAPI = {
     return api.post(`/bookings/${bookingId}/confirm_payment/`);
   },
   getBooking: (id) => api.get(`/bookings/${id}/`),
+  getAnalytics: (params = {}) => api.get('/bookings/analytics/', { params }),
   createScrapedBooking: (bookingData) => {
     cache.delete('bookings_my');
     return api.post('/bookings/scraped/', bookingData);
@@ -273,6 +279,11 @@ export const paymentAPI = {
 export const recommendationAPI = {
   getRecommendations: (preferences) => api.post('/recommendations/', preferences, { timeout: 120000 }),
   getDefaultRecommendations: () => api.get('/recommendations/', { timeout: 120000 }),
+  // AI Recommendation flow
+  startSession: () => api.post('/recommendations/start/', {}, { timeout: 15000 }),
+  submitAnswer: (sessionId, answer) => api.post('/recommendations/answer/', { session_id: sessionId, answer }, { timeout: 30000 }),
+  getStatus: (sessionId) => api.get(`/recommendations/status/${sessionId}/`, { timeout: 10000 }),
+  getResults: (sessionId) => api.get(`/recommendations/results/${sessionId}/`, { timeout: 15000 }),
 };
 
 export const scraperAPI = {
@@ -307,6 +318,38 @@ export const notificationAPI = {
   markAllRead: () => api.post('/auth/notifications/read/'),
   deleteOne: (id) => api.delete(`/auth/notifications/${id}/delete/`),
   clearRead: () => api.post('/auth/notifications/clear/'),
+};
+
+export const reviewAPI = {
+  // CRUD
+  list: (params) => api.get('/reviews/', { params }),
+  get: (id) => api.get(`/reviews/${id}/`),
+  create: (data) => api.post('/reviews/', data),
+  update: (id, data) => api.patch(`/reviews/${id}/`, data),
+  delete: (id) => api.delete(`/reviews/${id}/`),
+  // User's reviews
+  myReviews: () => api.get('/reviews/my-reviews/'),
+  // Helpful vote toggle
+  helpful: (id) => api.post(`/reviews/${id}/helpful/`),
+  // Staff reply
+  reply: (id, content) => api.post(`/reviews/${id}/reply/`, { content }),
+  // Analytics for a hotel
+  analytics: (hotelId) => api.get(`/reviews/analytics/${hotelId}/`),
+  // Autocorrect
+  autocorrect: (text) => api.post('/reviews/autocorrect/', { text }),
+  applyCorrections: (text, corrections) => api.post('/reviews/apply-corrections/', { text, corrections }),
+  // Check if user can review a booking
+  canReview: (bookingId) => api.get(`/reviews/can-review/${bookingId}/`),
+  // Bookings eligible for review (auto-completes past bookings server-side)
+  reviewableBookings: () => api.get('/reviews/reviewable-bookings/'),
+  // Upload review photos to Cloudinary
+  uploadPhotos: (files) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('images', file));
+    return api.post('/reviews/upload-photos/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 export default api;

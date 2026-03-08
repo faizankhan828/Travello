@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FaHotel, FaCheckCircle, FaClock, FaTimes, FaCalendarAlt, FaCreditCard } from 'react-icons/fa';
+import { FaHotel, FaCheckCircle, FaClock, FaTimes, FaCalendarAlt, FaCreditCard, FaArrowLeft } from 'react-icons/fa';
 import { bookingAPI } from '../services/api';
 
 const MyBookings = () => {
@@ -111,6 +111,15 @@ const MyBookings = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
       <div className="max-w-6xl mx-auto">
+        {/* Back to Dashboard */}
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
+        >
+          <FaArrowLeft className="text-xs" />
+          Back to Dashboard
+        </button>
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-800 dark:text-white mb-2">
@@ -331,6 +340,18 @@ const MyBookings = () => {
                             className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
                           >
                             💳 Complete Payment
+                          </motion.button>
+                        )}
+
+                        {/* Write Review Button - Show only for COMPLETED bookings */}
+                        {booking.status === 'COMPLETED' && (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => navigate(`/write-review?booking=${booking.id}`)}
+                            className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                          >
+                            ⭐ Write Review
                           </motion.button>
                         )}
 

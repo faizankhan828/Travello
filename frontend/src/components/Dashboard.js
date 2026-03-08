@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { hotelAPI, bookingAPI } from '../services/api';
 import RecommendationWidget from './RecommendationWidget';
 import NotificationCenter from './NotificationCenter';
+import { useTheme } from '../contexts/ThemeContext';
 import { 
   FaHotel, 
   FaPlane, 
@@ -24,7 +25,25 @@ import {
   FaWifi,
   FaParking,
   FaMapMarkerAlt,
-  FaClock
+  FaClock,
+  FaPen,
+  FaPassport,
+  FaTshirt,
+  FaLaptop,
+  FaPills,
+  FaUmbrella,
+  FaMoneyBillWave,
+  FaFirstAid,
+  FaFireExtinguisher,
+  FaHospital,
+  FaShieldAlt,
+  FaInfoCircle,
+  FaChevronDown,
+  FaChevronUp,
+  FaRedo,
+  FaCheck,
+  FaSun,
+  FaMoon
 } from 'react-icons/fa';
 import { 
   Luggage, 
@@ -32,7 +51,14 @@ import {
   Shield, 
   Notebook,
   Calendar,
-  X
+  X,
+  ChevronRight,
+  AlertTriangle,
+  Phone,
+  Heart,
+  Zap,
+  Flame,
+  Search
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -92,6 +118,11 @@ const features = [
     icon: Shield,
     description: 'Emergency contacts and safety resources.',
   },
+  {
+    name: 'Reviews & Ratings',
+    icon: FaPen,
+    description: 'Read and write hotel reviews.',
+  },
 ];
 
 const roomTypes = [
@@ -102,15 +133,129 @@ const roomTypes = [
   { label: 'Family', value: 'family' },
 ];
 
-// Sample data for packing checklist
-const packingItems = [
-  { id: 1, item: 'Passport & Travel Documents', checked: false },
-  { id: 2, item: 'Clothes & Accessories', checked: false },
-  { id: 3, item: 'Phone Charger & Adapter', checked: false },
-  { id: 4, item: 'Toiletries & Medications', checked: false },
-  { id: 5, item: 'Camera & Electronics', checked: false },
-  { id: 6, item: 'Travel Insurance Papers', checked: false },
+// ── Comprehensive Packing Checklist Data ──────────────────────────────────
+const PACKING_CATEGORIES = [
+  {
+    id: 'documents',
+    label: 'Documents & Money',
+    icon: FaPassport,
+    color: 'text-blue-600 dark:text-blue-400',
+    bg: 'bg-blue-50 dark:bg-blue-900/20',
+    border: 'border-blue-200 dark:border-blue-800',
+    items: [
+      { id: 'd1', item: 'Passport (+ photocopy)', checked: false },
+      { id: 'd2', item: 'National ID / CNIC', checked: false },
+      { id: 'd3', item: 'Travel insurance documents', checked: false },
+      { id: 'd4', item: 'Flight tickets / boarding passes', checked: false },
+      { id: 'd5', item: 'Hotel booking confirmations', checked: false },
+      { id: 'd6', item: 'Credit / debit cards', checked: false },
+      { id: 'd7', item: 'Cash (local & foreign currency)', checked: false },
+      { id: 'd8', item: 'Emergency contact list (printed)', checked: false },
+      { id: 'd9', item: 'Vaccination certificate', checked: false },
+      { id: 'd10', item: 'Driving license (international if needed)', checked: false },
+    ],
+  },
+  {
+    id: 'clothing',
+    label: 'Clothing & Accessories',
+    icon: FaTshirt,
+    color: 'text-purple-600 dark:text-purple-400',
+    bg: 'bg-purple-50 dark:bg-purple-900/20',
+    border: 'border-purple-200 dark:border-purple-800',
+    items: [
+      { id: 'c1', item: 'Everyday outfits (plan per day)', checked: false },
+      { id: 'c2', item: 'Underwear & socks (extras)', checked: false },
+      { id: 'c3', item: 'Sleepwear / pajamas', checked: false },
+      { id: 'c4', item: 'Comfortable walking shoes', checked: false },
+      { id: 'c5', item: 'Formal / semi-formal outfit', checked: false },
+      { id: 'c6', item: 'Light jacket / sweater', checked: false },
+      { id: 'c7', item: 'Sunglasses & hat / cap', checked: false },
+      { id: 'c8', item: 'Rain jacket / umbrella', checked: false },
+      { id: 'c9', item: 'Sandals / flip-flops', checked: false },
+      { id: 'c10', item: 'Belt & scarf / shawl', checked: false },
+    ],
+  },
+  {
+    id: 'electronics',
+    label: 'Electronics & Gadgets',
+    icon: FaLaptop,
+    color: 'text-cyan-600 dark:text-cyan-400',
+    bg: 'bg-cyan-50 dark:bg-cyan-900/20',
+    border: 'border-cyan-200 dark:border-cyan-800',
+    items: [
+      { id: 'e1', item: 'Phone + charger', checked: false },
+      { id: 'e2', item: 'Power bank (fully charged)', checked: false },
+      { id: 'e3', item: 'Universal travel adapter', checked: false },
+      { id: 'e4', item: 'Camera + memory card + charger', checked: false },
+      { id: 'e5', item: 'Laptop / tablet + charger', checked: false },
+      { id: 'e6', item: 'Earphones / headphones', checked: false },
+      { id: 'e7', item: 'Portable Wi-Fi / SIM card', checked: false },
+      { id: 'e8', item: 'Extension cord / multi-plug', checked: false },
+    ],
+  },
+  {
+    id: 'health',
+    label: 'Health & Toiletries',
+    icon: FaPills,
+    color: 'text-green-600 dark:text-green-400',
+    bg: 'bg-green-50 dark:bg-green-900/20',
+    border: 'border-green-200 dark:border-green-800',
+    items: [
+      { id: 'h1', item: 'Prescription medications', checked: false },
+      { id: 'h2', item: 'Pain relievers (Panadol / ibuprofen)', checked: false },
+      { id: 'h3', item: 'Motion-sickness tablets', checked: false },
+      { id: 'h4', item: 'Band-aids & antiseptic', checked: false },
+      { id: 'h5', item: 'Sunscreen (SPF 50+)', checked: false },
+      { id: 'h6', item: 'Insect repellent', checked: false },
+      { id: 'h7', item: 'Toothbrush & toothpaste', checked: false },
+      { id: 'h8', item: 'Shampoo & soap (travel-size)', checked: false },
+      { id: 'h9', item: 'Deodorant & perfume', checked: false },
+      { id: 'h10', item: 'Hand sanitizer & wet wipes', checked: false },
+      { id: 'h11', item: 'Face wash & moisturizer', checked: false },
+      { id: 'h12', item: 'Tissues / facial tissues', checked: false },
+    ],
+  },
+  {
+    id: 'travel',
+    label: 'Travel Comfort',
+    icon: FaUmbrella,
+    color: 'text-amber-600 dark:text-amber-400',
+    bg: 'bg-amber-50 dark:bg-amber-900/20',
+    border: 'border-amber-200 dark:border-amber-800',
+    items: [
+      { id: 't1', item: 'Neck pillow', checked: false },
+      { id: 't2', item: 'Eye mask & ear plugs', checked: false },
+      { id: 't3', item: 'Reusable water bottle', checked: false },
+      { id: 't4', item: 'Snacks for the journey', checked: false },
+      { id: 't5', item: 'Day bag / backpack', checked: false },
+      { id: 't6', item: 'Luggage locks', checked: false },
+      { id: 't7', item: 'Packing cubes / zip bags', checked: false },
+      { id: 't8', item: 'Laundry bag', checked: false },
+    ],
+  },
+  {
+    id: 'emergency',
+    label: 'Emergency Essentials',
+    icon: FaFirstAid,
+    color: 'text-red-600 dark:text-red-400',
+    bg: 'bg-red-50 dark:bg-red-900/20',
+    border: 'border-red-200 dark:border-red-800',
+    items: [
+      { id: 'em1', item: 'First-aid kit', checked: false },
+      { id: 'em2', item: 'Flashlight / torch', checked: false },
+      { id: 'em3', item: 'Whistle', checked: false },
+      { id: 'em4', item: 'Copies of all documents (digital + paper)', checked: false },
+      { id: 'em5', item: 'Emergency cash (hidden)', checked: false },
+      { id: 'em6', item: 'Swiss army knife (checked luggage only)', checked: false },
+    ],
+  },
 ];
+
+// Build flat list for quick lookups
+const buildFlatChecklist = () =>
+  PACKING_CATEGORIES.flatMap(cat =>
+    cat.items.map(item => ({ ...item, category: cat.id }))
+  );
 
 // Sample journal entries - Pakistan Famous Places
 const journalEntries = [
@@ -134,11 +279,78 @@ const journalEntries = [
   },
 ];
 
-// Emergency contacts - Pakistan
-const emergencyContacts = [
-  { name: 'Police', number: '15', icon: FaPhoneAlt },
-  { name: 'Rescue 1122', number: '1122', icon: FaPhoneAlt },
-  { name: 'Edhi Ambulance', number: '115', icon: FaPhoneAlt },
+// ── Comprehensive Emergency / SOS Data ────────────────────────────────────
+const SOS_SECTIONS = [
+  {
+    id: 'emergency-numbers',
+    label: 'Emergency Numbers',
+    icon: Phone,
+    color: 'text-red-600 dark:text-red-400',
+    bg: 'bg-red-50 dark:bg-red-900/20',
+    border: 'border-red-200 dark:border-red-800',
+    contacts: [
+      { name: 'Police Emergency', number: '15', desc: 'Punjab Police — 24/7' },
+      { name: 'Rescue 1122', number: '1122', desc: 'Emergency rescue — Punjab' },
+      { name: 'Edhi Ambulance', number: '115', desc: 'Nationwide ambulance service' },
+      { name: 'Fire Brigade', number: '16', desc: 'Fire emergency' },
+      { name: 'Motorway Police', number: '130', desc: 'Highway emergencies' },
+      { name: 'Bomb Disposal', number: '15', desc: 'Police connect' },
+    ],
+  },
+  {
+    id: 'medical',
+    label: 'Medical Help',
+    icon: Heart,
+    color: 'text-pink-600 dark:text-pink-400',
+    bg: 'bg-pink-50 dark:bg-pink-900/20',
+    border: 'border-pink-200 dark:border-pink-800',
+    contacts: [
+      { name: 'Shaukat Khanum Hospital', number: '042-35905000', desc: 'Major hospital — Lahore' },
+      { name: 'Mayo Hospital', number: '042-99211137', desc: 'Govt hospital — Anarkali' },
+      { name: 'Doctors Hospital', number: '042-35302701', desc: 'Private — Johar Town' },
+      { name: 'Hameed Latif Hospital', number: '042-35761999', desc: 'Private — Canal Bank' },
+      { name: 'Pakistan Poison Control', number: '0800-222-44', desc: 'Poison helpline' },
+    ],
+  },
+  {
+    id: 'safety-helplines',
+    label: 'Safety Helplines',
+    icon: Shield,
+    color: 'text-amber-600 dark:text-amber-400',
+    bg: 'bg-amber-50 dark:bg-amber-900/20',
+    border: 'border-amber-200 dark:border-amber-800',
+    contacts: [
+      { name: 'Tourist Police', number: '1166', desc: 'Tourism safety helpline' },
+      { name: 'Women Safety App', number: '0800-22444', desc: 'Women emergency helpline' },
+      { name: 'Child Protection', number: '1121', desc: 'Child abuse / missing' },
+      { name: 'NADRA (Lost CNIC)', number: '111-786-100', desc: 'ID card helpline' },
+      { name: 'Passport Office', number: '051-9207691', desc: 'Passport queries' },
+    ],
+  },
+];
+
+const SAFETY_TIPS = [
+  { icon: '📱', title: 'Share Location', desc: 'Keep live location sharing ON with a trusted contact.' },
+  { icon: '💧', title: 'Stay Hydrated', desc: 'Carry bottled water — avoid tap water in unfamiliar areas.' },
+  { icon: '📋', title: 'Document Copies', desc: 'Keep digital copies of passport, ID, and tickets in cloud storage.' },
+  { icon: '🔒', title: 'Secure Valuables', desc: 'Use hotel safe for passport, cash, and electronics.' },
+  { icon: '🗺️', title: 'Offline Maps', desc: 'Download area maps offline in case you lose network signal.' },
+  { icon: '🏥', title: 'Know Nearest Hospital', desc: 'Identify the closest hospital/clinic to your hotel on arrival.' },
+  { icon: '💰', title: 'Split Your Cash', desc: 'Keep money in separate pockets — never carry all in one place.' },
+  { icon: '🚕', title: 'Trusted Transport', desc: 'Use ride-hailing apps (Uber/Careem) instead of unmarked taxis.' },
+];
+
+const URDU_PHRASES = [
+  { english: 'Help me, please!', urdu: 'میری مدد کریں!', roman: 'Meri madad karein!' },
+  { english: 'Where is the hospital?', urdu: 'ہسپتال کہاں ہے؟', roman: 'Hospital kahan hai?' },
+  { english: 'I need a doctor', urdu: 'مجھے ڈاکٹر چاہیے', roman: 'Mujhe doctor chahiye' },
+  { english: 'Call the police', urdu: 'پولیس کو بلائیں', roman: 'Police ko bulayen' },
+  { english: 'I am lost', urdu: 'میں گم ہو گیا ہوں', roman: 'Main gum ho gaya hoon' },
+  { english: 'How much does this cost?', urdu: 'یہ کتنے کا ہے؟', roman: 'Yeh kitne ka hai?' },
+  { english: 'I am allergic to...', urdu: 'مجھے الرجی ہے...', roman: 'Mujhe allergy hai...' },
+  { english: 'Where is the bathroom?', urdu: 'بیت الخلا کہاں ہے؟', roman: 'Bathroom kahan hai?' },
+  { english: 'Thank you very much', urdu: 'بہت شکریہ', roman: 'Bohat shukriya' },
+  { english: 'I don\'t understand', urdu: 'مجھے سمجھ نہیں آیا', roman: 'Mujhe samajh nahi aaya' },
 ];
 
 // Map attractions data - Lahore, Pakistan (Verified GeoHack/Wikipedia Coordinates)
@@ -329,90 +541,209 @@ const attractions = [
   { id: 145, name: 'Baghbanpura', lat: 31.6030, lng: 74.3670, category: 'Adventure', description: 'Historic garden suburb near Shalimar Gardens' },
 ];
 
-// Smart Packing Checklist Widget
+// Smart Packing Checklist Widget — Enhanced with categories, search, progress
 const PackingChecklistWidget = () => {
-  const [checklist, setChecklist] = useState(packingItems);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [checklist, setChecklist] = useState(() => buildFlatChecklist());
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [collapsedCats, setCollapsedCats] = useState({});
 
   const toggleItem = (id) => {
-    setChecklist(checklist.map(item => 
+    setChecklist(prev => prev.map(item =>
       item.id === id ? { ...item, checked: !item.checked } : item
     ));
   };
 
-  const generatePackingList = () => {
-    setIsGenerating(true);
-    setTimeout(() => {
-      setChecklist(packingItems.map(item => ({ ...item, checked: false })));
-      setIsGenerating(false);
-    }, 1000);
+  const resetAll = () => setChecklist(buildFlatChecklist());
+
+  const toggleCategoryCollapse = (catId) => {
+    setCollapsedCats(prev => ({ ...prev, [catId]: !prev[catId] }));
   };
 
-  const completedCount = checklist.filter(item => item.checked).length;
-  const progressPercent = (completedCount / checklist.length) * 100;
+  // Stats
+  const totalItems = checklist.length;
+  const checkedItems = checklist.filter(i => i.checked).length;
+  const progressPercent = totalItems > 0 ? (checkedItems / totalItems) * 100 : 0;
+
+  const getCategoryStats = (catId) => {
+    const items = checklist.filter(i => i.category === catId);
+    const done = items.filter(i => i.checked).length;
+    return { total: items.length, done, percent: items.length > 0 ? (done / items.length) * 100 : 0 };
+  };
+
+  // Filtered items
+  const filteredCategories = PACKING_CATEGORIES.filter(
+    cat => activeCategory === 'all' || cat.id === activeCategory
+  ).map(cat => ({
+    ...cat,
+    items: checklist
+      .filter(item => item.category === cat.id)
+      .filter(item => !searchTerm || item.item.toLowerCase().includes(searchTerm.toLowerCase())),
+  })).filter(cat => cat.items.length > 0);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="card p-6"
-    >
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-accent-100 dark:bg-accent-900/30 rounded-xl flex items-center justify-center">
-            <Luggage className="w-6 h-6 text-accent-600 dark:text-accent-400" />
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+      {/* Header */}
+      <div className="card p-6 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-accent-100 dark:bg-accent-900/30 rounded-2xl flex items-center justify-center">
+              <Luggage className="w-7 h-7 text-accent-600 dark:text-accent-400" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white font-display">Smart Packing Checklist</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{checkedItems} of {totalItems} items packed</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white font-display">Smart Packing Checklist</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{completedCount}/{checklist.length} items packed</p>
+          <button onClick={resetAll} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-surface-800 rounded-xl hover:bg-gray-200 dark:hover:bg-surface-700 transition-colors">
+            <FaRedo className="text-xs" /> Reset All
+          </button>
+        </div>
+
+        {/* Overall progress */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
+            <span className="text-gray-500 dark:text-gray-400">Overall Progress</span>
+            <span className={`${progressPercent === 100 ? 'text-green-600 dark:text-green-400' : 'text-accent-600 dark:text-accent-400'}`}>
+              {Math.round(progressPercent)}%
+            </span>
+          </div>
+          <div className="h-3 bg-gray-100 dark:bg-surface-700 rounded-full overflow-hidden">
+            <motion.div
+              className={`h-full rounded-full transition-colors ${progressPercent === 100 ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-accent-500 to-primary-500'}`}
+              initial={{ width: 0 }} animate={{ width: `${progressPercent}%` }} transition={{ duration: 0.6 }}
+            />
           </div>
         </div>
-      </div>
 
-      {/* Progress Bar */}
-      <div className="mb-6">
-        <div className="h-2 bg-gray-100 dark:bg-surface-700 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-gradient-to-r from-accent-500 to-primary-500 rounded-full transition-all duration-500"
-            style={{ width: `${progressPercent}%` }}
+        {progressPercent === 100 && (
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+            <FaCheckCircle className="text-green-600 dark:text-green-400 text-lg flex-shrink-0" />
+            <span className="text-sm font-semibold text-green-700 dark:text-green-300">All packed! You're ready to go!</span>
+          </motion.div>
+        )}
+
+        {/* Search */}
+        <div className="relative mt-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search items..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 dark:bg-surface-800 border border-gray-200 dark:border-surface-700 rounded-xl focus:ring-2 focus:ring-accent-500 dark:focus:ring-accent-600 focus:border-transparent outline-none transition-all text-gray-900 dark:text-white placeholder-gray-400"
           />
         </div>
-      </div>
 
-      <div className="space-y-2 mb-6">
-        {checklist.map((item) => (
-          <motion.div
-            key={item.id}
-            whileHover={{ scale: 1.01 }}
-            className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-surface-800 transition-all cursor-pointer border border-transparent hover:border-gray-200 dark:hover:border-surface-700"
-            onClick={() => toggleItem(item.id)}
+        {/* Category filter pills */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          <button
+            onClick={() => setActiveCategory('all')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors
+              ${activeCategory === 'all' ? 'bg-accent-600 text-white' : 'bg-gray-100 dark:bg-surface-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-surface-700'}`}
           >
-            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
-              item.checked 
-                ? 'bg-accent-500 border-accent-500' 
-                : 'border-gray-300 dark:border-surface-600'
-            }`}>
-              {item.checked && <FaCheckCircle className="text-white text-sm" />}
-            </div>
-            <span className={`flex-1 text-sm font-medium ${
-              item.checked 
-                ? 'text-gray-400 dark:text-gray-500 line-through' 
-                : 'text-gray-700 dark:text-gray-300'
-            }`}>
-              {item.item}
-            </span>
-          </motion.div>
-        ))}
+            All ({totalItems})
+          </button>
+          {PACKING_CATEGORIES.map(cat => {
+            const stats = getCategoryStats(cat.id);
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id === activeCategory ? 'all' : cat.id)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5
+                  ${activeCategory === cat.id ? 'bg-accent-600 text-white' : 'bg-gray-100 dark:bg-surface-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-surface-700'}`}
+              >
+                <cat.icon className="text-[10px]" /> {cat.label.split(' ')[0]}
+                <span className="opacity-70">{stats.done}/{stats.total}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <button
-        onClick={generatePackingList}
-        disabled={isGenerating}
-        className="btn-accent w-full"
-      >
-        {isGenerating ? 'Generating...' : 'Generate New List'}
-      </button>
+      {/* Category cards */}
+      <div className="space-y-3">
+        {filteredCategories.map(cat => {
+          const stats = getCategoryStats(cat.id);
+          const isCollapsed = collapsedCats[cat.id];
+          const CatIcon = cat.icon;
+          return (
+            <motion.div key={cat.id} layout className={`card border ${cat.border} overflow-hidden`}>
+              {/* Category header */}
+              <button
+                onClick={() => toggleCategoryCollapse(cat.id)}
+                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-surface-800/50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 ${cat.bg} rounded-xl flex items-center justify-center`}>
+                    <CatIcon className={`${cat.color} text-lg`} />
+                  </div>
+                  <div className="text-left">
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-white">{cat.label}</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{stats.done}/{stats.total} packed</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {/* Mini progress ring */}
+                  <div className="relative w-9 h-9">
+                    <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+                      <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" className="text-gray-200 dark:text-surface-700" />
+                      <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" strokeDasharray={`${stats.percent * 0.9425} 94.25`} strokeLinecap="round" className={stats.percent === 100 ? 'text-green-500' : 'text-accent-500'} />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-gray-600 dark:text-gray-300">
+                      {Math.round(stats.percent)}%
+                    </span>
+                  </div>
+                  {isCollapsed ? <FaChevronDown className="text-gray-400 text-xs" /> : <FaChevronUp className="text-gray-400 text-xs" />}
+                </div>
+              </button>
+
+              {/* Items */}
+              <AnimatePresence>
+                {!isCollapsed && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 pb-4 space-y-1">
+                      {cat.items.map((item) => (
+                        <motion.div
+                          key={item.id}
+                          whileTap={{ scale: 0.98 }}
+                          className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-surface-800 cursor-pointer transition-all group"
+                          onClick={() => toggleItem(item.id)}
+                        >
+                          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all flex-shrink-0 ${
+                            item.checked
+                              ? 'bg-accent-500 border-accent-500'
+                              : 'border-gray-300 dark:border-surface-600 group-hover:border-accent-400'
+                          }`}>
+                            {item.checked && <FaCheck className="text-white text-[9px]" />}
+                          </div>
+                          <span className={`text-sm ${
+                            item.checked
+                              ? 'text-gray-400 dark:text-gray-500 line-through'
+                              : 'text-gray-700 dark:text-gray-300'
+                          }`}>{item.item}</span>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {filteredCategories.length === 0 && (
+        <div className="card p-8 text-center">
+          <p className="text-gray-400 dark:text-gray-500 text-sm">No items match your search.</p>
+        </div>
+      )}
     </motion.div>
   );
 };
@@ -462,104 +793,172 @@ const TravelJournalWidget = () => {
   );
 };
 
-// SOS/Safety Toolkit Widget
+// SOS/Safety Toolkit Widget — Enhanced with sections, tips, and Urdu phrases
 const SOSToolkitWidget = () => {
-  const [showTranslateModal, setShowTranslateModal] = useState(false);
-
-  const commonPhrases = [
-    { english: 'Help me, please!', translated: '¡Ayúdame, por favor!' },
-    { english: 'Where is the hospital?', translated: '¿Dónde está el hospital?' },
-    { english: 'I need a doctor', translated: 'Necesito un médico' },
-    { english: 'Call the police', translated: 'Llama a la policía' },
-  ];
+  const [showPhrasesModal, setShowPhrasesModal] = useState(false);
+  const [activeSection, setActiveSection] = useState('emergency-numbers');
+  const [showTips, setShowTips] = useState(false);
 
   return (
     <>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.2 }}
-        className="card p-6"
-      >
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 bg-danger-100 dark:bg-danger-900/30 rounded-xl flex items-center justify-center">
-            <Shield className="w-6 h-6 text-danger-600 dark:text-danger-400" />
-          </div>
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white font-display">SOS Safety Toolkit</h3>
-        </div>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
 
-        <div className="space-y-2 mb-6">
-          {emergencyContacts.map((contact, idx) => (
-            <div
-              key={idx}
-              className="flex items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-surface-800 border border-gray-100 dark:border-surface-700"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-danger-100 dark:bg-danger-900/30 rounded-lg flex items-center justify-center">
-                  <contact.icon className="text-danger-600 dark:text-danger-400" />
-                </div>
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{contact.name}</span>
-              </div>
-              <a
-                href={`tel:${contact.number}`}
-                className="px-4 py-2 bg-danger-100 dark:bg-danger-900/30 text-danger-600 dark:text-danger-400 rounded-lg font-bold hover:bg-danger-200 dark:hover:bg-danger-900/50 transition-colors"
-              >
-                {contact.number}
-              </a>
+        {/* SOS Big Button */}
+        <div className="card p-6 mb-4 border-2 border-red-200 dark:border-red-900/50 bg-gradient-to-br from-red-50 to-white dark:from-red-950/30 dark:to-surface-900">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/40 rounded-2xl flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
             </div>
-          ))}
+            <div className="flex-1 text-center sm:text-left">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white font-display">SOS Safety Toolkit</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Emergency contacts, safety tips & useful phrases for Pakistan</p>
+            </div>
+            <button
+              onClick={() => {
+                if (window.confirm('This will attempt to call Rescue 1122. Proceed?')) {
+                  window.location.href = 'tel:1122';
+                }
+              }}
+              className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all text-sm flex-shrink-0 animate-pulse hover:animate-none"
+            >
+              <FaExclamationTriangle /> SOS — Call 1122
+            </button>
+          </div>
         </div>
 
-        <div className="flex gap-3">
+        {/* Section tabs */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {SOS_SECTIONS.map(sec => {
+            const SecIcon = sec.icon;
+            return (
+              <button
+                key={sec.id}
+                onClick={() => { setActiveSection(sec.id); setShowTips(false); }}
+                className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-colors
+                  ${activeSection === sec.id && !showTips
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-surface-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-surface-700'
+                  }`}
+              >
+                <SecIcon className="w-3.5 h-3.5" /> {sec.label}
+              </button>
+            );
+          })}
           <button
-            onClick={() => setShowTranslateModal(true)}
-            className="btn-secondary flex-1"
+            onClick={() => { setShowTips(prev => !prev); }}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-colors
+              ${showTips
+                ? 'bg-red-600 text-white shadow-md'
+                : 'bg-gray-100 dark:bg-surface-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-surface-700'
+              }`}
           >
-            <FaLanguage />
-            Quick Translate
+            <FaShieldAlt /> Safety Tips
           </button>
           <button
-            onClick={() => alert('🚨 Emergency services will be contacted! Stay calm and provide your location.')}
-            className="btn-danger flex-1"
+            onClick={() => setShowPhrasesModal(true)}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-gray-100 dark:bg-surface-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-surface-700 transition-colors"
           >
-            <FaExclamationTriangle />
-            SOS
+            <FaLanguage /> Urdu Phrases
           </button>
         </div>
+
+        {/* Active section contacts */}
+        {!showTips && SOS_SECTIONS.filter(s => s.id === activeSection).map(sec => {
+          const SecIcon = sec.icon;
+          return (
+            <motion.div key={sec.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`card border ${sec.border} overflow-hidden`}>
+              <div className="flex items-center gap-3 p-4 border-b border-gray-100 dark:border-surface-700">
+                <div className={`w-10 h-10 ${sec.bg} rounded-xl flex items-center justify-center`}>
+                  <SecIcon className={`w-5 h-5 ${sec.color}`} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white">{sec.label}</h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{sec.contacts.length} contacts</p>
+                </div>
+              </div>
+              <div className="divide-y divide-gray-100 dark:divide-surface-700">
+                {sec.contacts.map((contact, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-surface-800/50 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{contact.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{contact.desc}</p>
+                    </div>
+                    <a
+                      href={`tel:${contact.number.replace(/[^0-9+]/g, '')}`}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl font-bold text-sm hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors flex-shrink-0 ml-3"
+                    >
+                      <FaPhoneAlt className="text-xs" /> {contact.number}
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          );
+        })}
+
+        {/* Safety Tips */}
+        {showTips && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card border border-red-200 dark:border-red-800 overflow-hidden">
+            <div className="flex items-center gap-3 p-4 border-b border-red-100 dark:border-red-900/50 bg-red-50/50 dark:bg-red-900/10">
+              <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center">
+                <FaShieldAlt className="text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white">Travel Safety Tips</h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{SAFETY_TIPS.length} essential tips</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4">
+              {SAFETY_TIPS.map((tip, idx) => (
+                <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-surface-800 border border-gray-100 dark:border-surface-700">
+                  <span className="text-2xl flex-shrink-0 mt-0.5">{tip.icon}</span>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{tip.title}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{tip.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
       </motion.div>
 
-      {/* Translate Modal */}
+      {/* Urdu Phrases Modal */}
       <AnimatePresence>
-        {showTranslateModal && (
+        {showPhrasesModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowTranslateModal(false)}
+            onClick={() => setShowPhrasesModal(false)}
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-white dark:bg-surface-900 rounded-2xl shadow-soft-xl p-6 max-w-md w-full border border-gray-200 dark:border-surface-700"
+              className="bg-white dark:bg-surface-900 rounded-2xl shadow-soft-xl p-6 max-w-lg w-full border border-gray-200 dark:border-surface-700 max-h-[85vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white font-display">Common Phrases (Spanish)</h3>
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white font-display">Useful Urdu Phrases</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Essential phrases for traveling in Pakistan</p>
+                </div>
                 <button
-                  onClick={() => setShowTranslateModal(false)}
+                  onClick={() => setShowPhrasesModal(false)}
                   className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-surface-800 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="space-y-3">
-                {commonPhrases.map((phrase, idx) => (
-                  <div key={idx} className="p-4 rounded-xl bg-gray-50 dark:bg-surface-800 border border-gray-100 dark:border-surface-700">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">{phrase.english}</p>
-                    <p className="text-sm text-primary-600 dark:text-primary-400">{phrase.translated}</p>
+              <div className="space-y-2.5">
+                {URDU_PHRASES.map((phrase, idx) => (
+                  <div key={idx} className="p-3.5 rounded-xl bg-gray-50 dark:bg-surface-800 border border-gray-100 dark:border-surface-700">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{phrase.english}</p>
+                    <p className="text-base text-primary-600 dark:text-primary-400 mt-1 font-medium" dir="rtl">{phrase.urdu}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 italic">{phrase.roman}</p>
                   </div>
                 ))}
               </div>
@@ -779,6 +1178,8 @@ const Sidebar = ({ activeFeature, setActiveFeature }) => {
                     navigate('/itinerary');
                   } else if (feature.name === 'Travel Journal') {
                     navigate('/journal');
+                  } else if (feature.name === 'Reviews & Ratings') {
+                    navigate('/my-reviews');
                   } else {
                     setActiveFeature(feature.name);
                   }
@@ -812,8 +1213,49 @@ const Sidebar = ({ activeFeature, setActiveFeature }) => {
   );
 };
 
+// Inline Dark/Light Mode Toggle for Dashboard header (avoids overlap)
+const InlineThemeToggle = () => {
+  const { toggleTheme, isDark } = useTheme();
+  return (
+    <motion.button
+      onClick={toggleTheme}
+      whileHover={{ scale: 1.08 }}
+      whileTap={{ scale: 0.92 }}
+      className="relative w-10 h-10 rounded-xl shadow-md flex items-center justify-center transition-all duration-300 group border border-white/20"
+      style={{
+        background: isDark
+          ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)'
+          : 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+        boxShadow: isDark
+          ? '0 4px 15px rgba(99, 102, 241, 0.3)'
+          : '0 4px 15px rgba(245, 158, 11, 0.3)',
+      }}
+      aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+      title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+    >
+      <motion.div
+        initial={false}
+        animate={{ rotate: isDark ? 360 : 0 }}
+        transition={{ duration: 0.5, ease: 'easeInOut' }}
+      >
+        {isDark ? (
+          <FaMoon className="text-white text-base drop-shadow-md" />
+        ) : (
+          <FaSun className="text-white text-base drop-shadow-md" />
+        )}
+      </motion.div>
+      {/* Tooltip */}
+      <div className="absolute -bottom-9 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
+        <div className="bg-gray-900 dark:bg-gray-700 text-white text-[11px] px-2.5 py-1 rounded-lg shadow-lg whitespace-nowrap">
+          {isDark ? 'Light Mode' : 'Dark Mode'}
+        </div>
+      </div>
+    </motion.button>
+  );
+};
+
 // Professional Top Navigation Bar
-const TopNav = () => {
+const TopNav = ({ onToggleMobile }) => {
   const navigate = useNavigate();
   const [showThankYou, setShowThankYou] = useState(false);
   
@@ -975,7 +1417,7 @@ const TopNav = () => {
 
       <header className="w-full bg-white/80 dark:bg-surface-900/80 backdrop-blur-xl shadow-sm border-b border-gray-200/50 dark:border-surface-800/50 flex items-center justify-between px-6 lg:px-8 py-3 transition-all duration-300 sticky top-0 z-30">
         <div className="flex items-center gap-4">
-          <button className="p-2.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-surface-800 rounded-xl transition-all duration-200 md:hidden">
+          <button onClick={onToggleMobile} className="p-2.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-surface-800 rounded-xl transition-all duration-200 md:hidden">
             <FaBars className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-3">
@@ -993,9 +1435,12 @@ const TopNav = () => {
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Notification Center */}
           <NotificationCenter />
+          
+          {/* Night / Dark Mode Toggle — inline, no overlap */}
+          <InlineThemeToggle />
           
           {/* Divider */}
           <div className="hidden sm:block h-8 w-px bg-gray-200 dark:bg-surface-700"></div>
@@ -1020,6 +1465,7 @@ const TopNav = () => {
 const Dashboard = () => {
   const navigate = useNavigate();
   const [activeFeature, setActiveFeature] = useState('Hotels');
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [destination, setDestination] = useState('');
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
@@ -1300,7 +1746,75 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-surface-950 flex flex-col transition-colors duration-300">
-      <TopNav />
+      <TopNav onToggleMobile={() => setMobileOpen(o => !o)} />
+
+      {/* Mobile sidebar overlay */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+              onClick={() => setMobileOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: -288 }}
+              animate={{ x: 0 }}
+              exit={{ x: -288 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed inset-y-0 left-0 z-50 w-72 md:hidden flex flex-col bg-white dark:bg-secondary-950 border-r border-gray-200 dark:border-secondary-900 shadow-soft-xl"
+            >
+              {/* Close button */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 dark:border-secondary-900">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center shadow-soft">
+                    <FaGlobeAsia className="text-white text-xl" />
+                  </div>
+                  <span className="text-xl font-bold text-gray-900 dark:text-white tracking-tight font-display">Travello</span>
+                </div>
+                <button onClick={() => setMobileOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Nav items */}
+              <nav className="flex-1 px-4 py-6 overflow-y-auto">
+                <p className="px-4 mb-3 text-xs font-semibold text-gray-400 dark:text-secondary-400 uppercase tracking-wider">Main Menu</p>
+                <div className="space-y-1">
+                  {features.map((feature) => {
+                    const Icon = feature.icon;
+                    const isActive = activeFeature === feature.name;
+                    return (
+                      <button
+                        key={feature.name}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
+                          isActive
+                            ? 'bg-primary-50 dark:bg-primary-600/20 text-primary-700 dark:text-white border-l-4 border-primary-500 rounded-l-none'
+                            : 'text-gray-600 dark:text-secondary-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5'
+                        }`}
+                        onClick={() => {
+                          setMobileOpen(false);
+                          if (feature.name === 'Browse Hotels') navigate('/hotels');
+                          else if (feature.name === 'My Bookings') navigate('/my-bookings');
+                          else if (feature.name === 'AI Itinerary') navigate('/itinerary');
+                          else if (feature.name === 'Travel Journal') navigate('/journal');
+                          else if (feature.name === 'Reviews & Ratings') navigate('/my-reviews');
+                          else setActiveFeature(feature.name);
+                        }}
+                      >
+                        <Icon className={`text-lg ${isActive ? 'text-primary-500 dark:text-primary-400' : 'text-gray-400 dark:text-secondary-400'}`} />
+                        <span className="text-sm">{feature.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </nav>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
       
       <div className="flex flex-1 overflow-hidden">
         <Sidebar activeFeature={activeFeature} setActiveFeature={setActiveFeature} />
@@ -1997,7 +2511,7 @@ const Dashboard = () => {
 
           {/* Smart Packing Checklist Section */}
           {activeFeature === 'Smart Packing Checklist' && (
-            <div className="max-w-3xl">
+            <div className="max-w-4xl">
               <PackingChecklistWidget />
             </div>
           )}
@@ -2011,7 +2525,7 @@ const Dashboard = () => {
 
           {/* SOS Safety Toolkit Section */}
           {activeFeature === 'SOS Safety Toolkit' && (
-            <div className="max-w-3xl">
+            <div className="max-w-4xl">
               <SOSToolkitWidget />
             </div>
           )}

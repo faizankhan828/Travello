@@ -1,0 +1,63 @@
+# ── Travello Backend .dockerignore ──────────────────────
+# Everything listed here is excluded from the Docker build
+# context, which speeds up builds and keeps images smaller.
+
+# Version control
+.git/
+.gitignore
+
+# Python artefacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environment (venv lives in builder stage only)
+venv/
+.venv/
+env/
+
+# Environment secrets (injected at runtime, never baked in)
+.env
+.env.*
+!.env.example
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# SQLite dev database (volume-mounted at runtime)
+db.sqlite3
+db.sqlite3-journal
+
+# Django generated
+staticfiles/
+media/
+
+# Logs
+*.log
+logs/
+
+# Node modules in scraper/ (re-built in builder stage)
+scraper/node_modules/
+
+# Tests & CI
+.pytest_cache/
+htmlcov/
+.coverage
+*.coveragerc
+
+# Documentation
+*.md
+LICENSE
+
+# Docker (don't send docker config into its own build)
+Dockerfile
+docker-compose*.yml
+.dockerignore

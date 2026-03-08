@@ -1,20 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { chatAPI } from '../services/api';
 
+/* ── Typing indicator ──────────────────────────────────────────────────── */
 function TypingDots() {
   return (
     <div className="flex space-x-1 items-center py-1">
-      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.2s]"></span>
-      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.1s]"></span>
-      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
+      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.2s]" />
+      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.1s]" />
+      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
     </div>
   );
 }
 
-/**
- * Render simple markdown-like formatting:
- *   **bold**, *italic*, `code`, bullet lists (- item), numbered lists (1. item)
- */
+/* ── Markdown-lite renderer ────────────────────────────────────────────── */
 function FormattedMessage({ text }) {
   if (!text) return null;
 
@@ -26,15 +24,16 @@ function FormattedMessage({ text }) {
   const flushList = () => {
     if (listBuffer.length === 0) return;
     const Tag = listType === 'ol' ? 'ol' : 'ul';
-    const cls = listType === 'ol'
-      ? 'list-decimal list-inside space-y-0.5 my-1'
-      : 'list-disc list-inside space-y-0.5 my-1';
+    const cls =
+      listType === 'ol'
+        ? 'list-decimal list-inside space-y-0.5 my-1'
+        : 'list-disc list-inside space-y-0.5 my-1';
     elements.push(
       <Tag key={`list-${elements.length}`} className={cls}>
         {listBuffer.map((item, i) => (
           <li key={i}>{formatInline(item)}</li>
         ))}
-      </Tag>
+      </Tag>,
     );
     listBuffer = [];
     listType = null;
@@ -48,27 +47,18 @@ function FormattedMessage({ text }) {
     let key = 0;
 
     while ((match = regex.exec(line)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(line.slice(lastIndex, match.index));
-      }
-      if (match[2]) {
-        parts.push(<strong key={key++}>{match[2]}</strong>);
-      } else if (match[3]) {
-        parts.push(<em key={key++}>{match[3]}</em>);
-      } else if (match[4]) {
+      if (match.index > lastIndex) parts.push(line.slice(lastIndex, match.index));
+      if (match[2]) parts.push(<strong key={key++}>{match[2]}</strong>);
+      else if (match[3]) parts.push(<em key={key++}>{match[3]}</em>);
+      else if (match[4])
         parts.push(
           <code key={key++} className="bg-gray-100 dark:bg-gray-600 px-1 rounded text-xs">
             {match[4]}
-          </code>
+          </code>,
         );
-      }
       lastIndex = match.index + match[0].length;
     }
-
-    if (lastIndex < line.length) {
-      parts.push(line.slice(lastIndex));
-    }
-
+    if (lastIndex < line.length) parts.push(line.slice(lastIndex));
     return parts.length > 0 ? parts : line;
   };
 
@@ -95,29 +85,45 @@ function FormattedMessage({ text }) {
         elements.push(
           <p key={`p-${i}`} className="my-0.5">
             {formatInline(trimmed)}
-          </p>
+          </p>,
         );
       }
     }
   }
   flushList();
-
   return <div className="space-y-0">{elements}</div>;
 }
 
+/* ── Quick action chips ────────────────────────────────────────────────── */
 const QUICK_ACTIONS = [
-  { label: 'Hotels', message: 'Show me popular hotels in Lahore' },
-  { label: 'Flights', message: 'Help me find flights' },
-  { label: 'Tips', message: 'Travel tips for Pakistan' },
+  { label: '🏨 Hotels', message: 'Show me popular hotels in Lahore' },
+  { label: '🤖 AI Recommend', message: 'I want personalized hotel recommendations based on my preferences' },
+  { label: '🗺️ Destinations', message: 'What are the best travel destinations in Pakistan?' },
+  { label: '💰 Budget', message: 'Find budget hotels in Islamabad' },
+  { label: '✈️ Tips', message: 'Travel tips for Pakistan' },
+  { label: '📅 Book Hotel', message: 'I want to book a hotel' },
 ];
 
+/* ── Session ID generator ──────────────────────────────────────────────── */
+function getSessionId() {
+  let id = sessionStorage.getItem('travello_chat_session');
+  if (!id) {
+    id = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    sessionStorage.setItem('travello_chat_session', id);
+  }
+  return id;
+}
+
+/* ── Main component ────────────────────────────────────────────────────── */
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [bookingFlow, setBookingFlow] = useState(null);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  const sessionId = useMemo(getSessionId, []);
 
   useEffect(() => {
     if (isOpen && messages.length === 0) {
@@ -125,61 +131,93 @@ export default function ChatWidget() {
         {
           id: 'welcome',
           role: 'bot',
-          content: "Hi there! I'm your Travello assistant. Ask me about hotels, flights, sightseeing, or anything travel-related.",
+          content:
+            "Hi there! I'm your **Travello AI assistant**. I can help you find hotels, explore destinations, get travel tips, and even book hotels — just ask!",
         },
       ]);
     }
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
-    }
+    if (isOpen && inputRef.current) inputRef.current.focus();
   }, [isOpen, messages.length]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isLoading]);
 
-  const sendMessage = useCallback(async (text) => {
-    const trimmed = (text || '').trim();
-    if (!trimmed || isLoading) return;
+  /* ── Send message ──────────────────────────────────── */
+  const sendMessage = useCallback(
+    async (text) => {
+      const trimmed = (text || '').trim();
+      if (!trimmed || isLoading) return;
 
-    const userMessage = { id: `${Date.now()}-u`, role: 'user', content: trimmed };
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
+      const userMessage = { id: `${Date.now()}-u`, role: 'user', content: trimmed };
+      setMessages((prev) => [...prev, userMessage]);
+      setInput('');
+      setIsLoading(true);
 
-    try {
-      const response = await chatAPI.sendMessage(trimmed);
-      const botText = response?.data?.reply || 'Sorry, I could not process that.';
-      setMessages((prev) => [
-        ...prev,
-        { id: `${Date.now()}-b`, role: 'bot', content: botText },
-      ]);
-    } catch (err) {
-      console.error('Chat error:', err);
-      const errorMessage =
-        err?.response?.data?.error ||
-        err?.message ||
-        (err?.request ? 'Unable to connect. Check your internet connection.' : 'Something went wrong. Please try again.');
-      setMessages((prev) => [
-        ...prev,
-        { id: `${Date.now()}-e`, role: 'bot', content: errorMessage },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading]);
+      try {
+        const response = await chatAPI.sendMessage(trimmed, sessionId);
+        const data = response?.data || {};
+        const botText = data.reply || 'Sorry, I could not process that.';
+
+        // Track booking flow state from backend
+        if (data.booking_flow) setBookingFlow('active');
+        else setBookingFlow(null);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `${Date.now()}-b`,
+            role: 'bot',
+            content: botText,
+            hasHotels: data.has_hotels || false,
+            bookingId: data.booking_id || null,
+          },
+        ]);
+
+        // Show follow-up suggestions for hotel results
+        if (data.has_hotels) {
+          setTimeout(() => {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `${Date.now()}-suggest`,
+                role: 'suggestions',
+                suggestions: [
+                  { label: 'Book Option 1', message: 'Book option 1' },
+                  { label: 'Book Option 2', message: 'Book option 2' },
+                  { label: 'More Hotels', message: 'Show me more hotel options' },
+                  { label: 'Different City', message: 'Show hotels in another city' },
+                ],
+              },
+            ]);
+          }, 300);
+        }
+      } catch (err) {
+        console.error('Chat error:', err);
+        const errorMessage =
+          err?.response?.data?.error ||
+          err?.message ||
+          (err?.request
+            ? 'Unable to connect. Check your internet connection.'
+            : 'Something went wrong. Please try again.');
+        setMessages((prev) => [
+          ...prev,
+          { id: `${Date.now()}-e`, role: 'bot', content: errorMessage },
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [isLoading, sessionId],
+  );
 
   const handleSend = () => sendMessage(input);
-
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
-
   const toggle = () => setIsOpen((v) => !v);
 
   const showQuickActions = messages.length <= 1 && !isLoading;
@@ -187,7 +225,7 @@ export default function ChatWidget() {
   const buttonClasses = useMemo(
     () =>
       'fixed bottom-6 right-6 z-40 rounded-full shadow-lg bg-primary-600 hover:bg-primary-700 text-white w-14 h-14 flex items-center justify-center transition-transform duration-200',
-    []
+    [],
   );
 
   return (
@@ -201,11 +239,19 @@ export default function ChatWidget() {
       >
         {isOpen ? (
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
-            <path fillRule="evenodd" d="M6.225 4.811a1 1 0 0 1 1.414 0L12 9.172l4.361-4.361a1 1 0 1 1 1.414 1.414L13.414 10.586l4.361 4.361a1 1 0 0 1-1.414 1.414L12 12l-4.361 4.361a1 1 0 1 1-1.414-1.414l4.361-4.361-4.361-4.361a1 1 0 0 1 0-1.414Z" clipRule="evenodd" />
+            <path
+              fillRule="evenodd"
+              d="M6.225 4.811a1 1 0 0 1 1.414 0L12 9.172l4.361-4.361a1 1 0 1 1 1.414 1.414L13.414 10.586l4.361 4.361a1 1 0 0 1-1.414 1.414L12 12l-4.361 4.361a1 1 0 1 1-1.414-1.414l4.361-4.361-4.361-4.361a1 1 0 0 1 0-1.414Z"
+              clipRule="evenodd"
+            />
           </svg>
         ) : (
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-7 h-7">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3h9m-9 3h5.25M21 12c0 4.97-4.477 9-10 9-1.225 0-2.397-.215-3.477-.61-.52-.192-1.086-.127-1.561.135L3 21l.475-2.379c.104-.523-.063-1.065-.446-1.449A8.943 8.943 0 0 1 1 12c0-4.97 4.477-9 10-9s10 4.03 10 9Z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M7.5 8.25h9m-9 3h9m-9 3h5.25M21 12c0 4.97-4.477 9-10 9-1.225 0-2.397-.215-3.477-.61-.52-.192-1.086-.127-1.561.135L3 21l.475-2.379c.104-.523-.063-1.065-.446-1.449A8.943 8.943 0 0 1 1 12c0-4.97 4.477-9 10-9s10 4.03 10 9Z"
+            />
           </svg>
         )}
       </button>
@@ -216,10 +262,16 @@ export default function ChatWidget() {
           isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
         }`}
       >
+        {/* Header */}
         <div className="bg-primary-600 dark:bg-blue-700 text-white px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-            <span className="font-semibold text-sm">Travello Assistant</span>
+            <div className="w-2 h-2 bg-green-400 rounded-full" />
+            <span className="font-semibold text-sm">Travello AI Assistant</span>
+            {bookingFlow && (
+              <span className="text-[10px] bg-yellow-400 text-gray-900 px-1.5 py-0.5 rounded-full font-medium">
+                Booking
+              </span>
+            )}
           </div>
           <button onClick={toggle} className="text-white/70 hover:text-white transition-colors p-1">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -228,20 +280,54 @@ export default function ChatWidget() {
           </button>
         </div>
 
+        {/* Messages area */}
         <div ref={scrollRef} className="h-80 max-h-[70vh] overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-900">
-          {messages.map((m) => (
-            <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[85%] px-3 py-2 rounded-2xl shadow-sm text-sm leading-relaxed ${
-                  m.role === 'user'
-                    ? 'bg-primary-600 dark:bg-blue-600 text-white rounded-br-sm'
-                    : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-600 rounded-bl-sm'
-                }`}
-              >
-                {m.role === 'user' ? m.content : <FormattedMessage text={m.content} />}
+          {messages.map((m) => {
+            /* ── Suggestion chips ── */
+            if (m.role === 'suggestions') {
+              return (
+                <div key={m.id} className="flex flex-wrap gap-1.5 pt-1">
+                  {m.suggestions.map((s) => (
+                    <button
+                      key={s.label}
+                      onClick={() => sendMessage(s.message)}
+                      className="text-xs px-2.5 py-1 rounded-full border border-primary-300 dark:border-blue-600 text-primary-600 dark:text-blue-400 hover:bg-primary-50 dark:hover:bg-blue-900/30 transition-colors"
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              );
+            }
+
+            /* ── User or bot message ── */
+            return (
+              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[85%] px-3 py-2 rounded-2xl shadow-sm text-sm leading-relaxed ${
+                    m.role === 'user'
+                      ? 'bg-primary-600 dark:bg-blue-600 text-white rounded-br-sm'
+                      : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-600 rounded-bl-sm'
+                  }`}
+                >
+                  {m.role === 'user' ? m.content : <FormattedMessage text={m.content} />}
+                  {/* Booking confirmation badge */}
+                  {m.bookingId && (
+                    <div className="mt-2 flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path
+                          fillRule="evenodd"
+                          d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      Booking Confirmed
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Quick action chips after welcome */}
           {showQuickActions && (
@@ -267,7 +353,19 @@ export default function ChatWidget() {
           )}
         </div>
 
+        {/* Input area */}
         <div className="p-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+          {bookingFlow && (
+            <div className="mb-2 flex items-center gap-2 text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded-lg">
+              <span>📝 Booking in progress</span>
+              <button
+                onClick={() => sendMessage('cancel booking')}
+                className="ml-auto text-red-500 hover:text-red-700 dark:hover:text-red-400 font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
           <div className="flex items-end space-x-2">
             <textarea
               ref={inputRef}
@@ -275,7 +373,11 @@ export default function ChatWidget() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={1}
-              placeholder="Ask me anything about travel..."
+              placeholder={
+                bookingFlow
+                  ? 'Type your booking details...'
+                  : 'Ask me about hotels, destinations, tips...'
+              }
               className="flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent max-h-28 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
             />
             <button

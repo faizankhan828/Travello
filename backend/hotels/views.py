@@ -4,9 +4,13 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum, Count, Avg, F, Value, CharField
+from django.db.models.functions import TruncDate, TruncWeek, TruncMonth
 from .models import Hotel, Booking, RoomType
 from django.utils.dateparse import parse_date
+from django.utils import timezone
+from datetime import timedelta
+from decimal import Decimal
 from .serializers import (
     HotelSerializer, BookingSerializer, BookingCreateSerializer,
     AvailabilityCheckSerializer, RoomTypeSerializer, BookingPreviewSerializer,
@@ -270,6 +274,170 @@ class BookingViewSet(viewsets.ModelViewSet):
                 'Error retrieving bookings',
                 status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=False, methods=['get'], url_path='analytics')
+    def analytics(self, request):
+        """
+        GET /api/bookings/analytics/
+        Admin only — returns comprehensive dashboard analytics.
+        Query params: period (7d|30d|90d|1y|all), hotel (id)
+        """
+        if not request.user.is_staff:
+            return get_safe_error_response('Access denied', status.HTTP_403_FORBIDDEN)
+
+        try:
+            period = request.query_params.get('period', '30d')
+            hotel_id = request.query_params.get('hotel')
+            now = timezone.now()
+
+            # Period range
+            period_map = {'7d': 7, '30d': 30, '90d': 90, '1y': 365}
+            days = period_map.get(period)
+            start_date = (now - timedelta(days=days)).date() if days else None
+
+            # Base querysets
+            all_bookings = Booking.objects.select_related('hotel', 'room_type')
+            if hotel_id:
+                all_bookings = all_bookings.filter(hotel_id=hotel_id)
+
+            current_qs = all_bookings.filter(created_at__date__gte=start_date) if start_date else all_bookings
+            # Previous period for comparison
+            prev_start = (now - timedelta(days=days * 2)).date() if days else None
+            prev_end = start_date
+            prev_qs = all_bookings.filter(created_at__date__gte=prev_start, created_at__date__lt=prev_end) if prev_start else Booking.objects.none()
+
+            # Paid statuses
+            paid = ['PAID', 'CONFIRMED', 'COMPLETED']
+
+            # ── KPI Cards ──
+            total_bookings = current_qs.count()
+            paid_bookings = current_qs.filter(status__in=paid)
+            total_revenue = float(paid_bookings.aggregate(s=Sum('total_price'))['s'] or 0)
+            avg_booking_value = float(paid_bookings.aggregate(a=Avg('total_price'))['a'] or 0)
+            cancelled_count = current_qs.filter(status='CANCELLED').count()
+            conversion_rate = round((paid_bookings.count() / total_bookings * 100), 1) if total_bookings else 0
+
+            # Previous period KPIs for growth %
+            prev_bookings = prev_qs.count()
+            prev_revenue = float(prev_qs.filter(status__in=paid).aggregate(s=Sum('total_price'))['s'] or 0)
+            booking_growth = round(((total_bookings - prev_bookings) / prev_bookings * 100), 1) if prev_bookings else 0
+            revenue_growth = round(((total_revenue - prev_revenue) / prev_revenue * 100), 1) if prev_revenue else 0
+
+            # ── Revenue Over Time (line chart) ──
+            if days and days <= 30:
+                trunc_fn = TruncDate('created_at')
+            elif days and days <= 90:
+                trunc_fn = TruncDate('created_at')
+            else:
+                trunc_fn = TruncMonth('created_at')
+
+            revenue_over_time = list(
+                paid_bookings
+                .annotate(date=trunc_fn)
+                .values('date')
+                .annotate(revenue=Sum('total_price'), count=Count('id'))
+                .order_by('date')
+            )
+            for r in revenue_over_time:
+                r['revenue'] = float(r['revenue'] or 0)
+                r['date'] = r['date'].isoformat() if r['date'] else ''
+
+            # ── Bookings Over Time (bar chart) ──
+            bookings_over_time = list(
+                current_qs
+                .annotate(date=trunc_fn)
+                .values('date')
+                .annotate(total=Count('id'), paid=Count('id', filter=Q(status__in=paid)), cancelled=Count('id', filter=Q(status='CANCELLED')))
+                .order_by('date')
+            )
+            for b in bookings_over_time:
+                b['date'] = b['date'].isoformat() if b['date'] else ''
+
+            # ── Status Distribution (pie chart) ──
+            status_dist = list(
+                current_qs.values('status')
+                .annotate(count=Count('id'), revenue=Sum('total_price'))
+                .order_by('-count')
+            )
+            for s in status_dist:
+                s['revenue'] = float(s['revenue'] or 0)
+
+            # ── Payment Method Distribution (donut chart) ──
+            payment_dist = list(
+                current_qs.values('payment_method')
+                .annotate(count=Count('id'), revenue=Sum('total_price'))
+                .order_by('-count')
+            )
+            for p in payment_dist:
+                p['revenue'] = float(p['revenue'] or 0)
+
+            # ── Top Hotels by Revenue ──
+            top_hotels = list(
+                paid_bookings
+                .values('hotel__name', 'hotel__id')
+                .annotate(revenue=Sum('total_price'), bookings=Count('id'))
+                .order_by('-revenue')[:10]
+            )
+            for h in top_hotels:
+                h['revenue'] = float(h['revenue'] or 0)
+                h['name'] = h.pop('hotel__name')
+                h['hotel_id'] = h.pop('hotel__id')
+
+            # ── Room Type Distribution ──
+            room_dist = list(
+                paid_bookings
+                .values('room_type__type')
+                .annotate(count=Count('id'), revenue=Sum('total_price'))
+                .order_by('-count')
+            )
+            for rt in room_dist:
+                rt['revenue'] = float(rt['revenue'] or 0)
+                rt['type'] = rt.pop('room_type__type', 'Unknown')
+
+            # ── Cumulative Revenue (area chart) ──
+            cumulative = []
+            running = 0
+            for r in revenue_over_time:
+                running += r['revenue']
+                cumulative.append({'date': r['date'], 'cumulative': round(running, 2)})
+
+            # ── Recent Bookings ──
+            recent = list(
+                current_qs.order_by('-created_at')[:5]
+                .values('id', 'hotel__name', 'guest_name', 'total_price', 'status', 'created_at', 'check_in', 'check_out')
+            )
+            for rb in recent:
+                rb['total_price'] = float(rb['total_price'] or 0)
+                rb['hotel_name'] = rb.pop('hotel__name')
+                rb['created_at'] = rb['created_at'].isoformat() if rb['created_at'] else ''
+                rb['check_in'] = rb['check_in'].isoformat() if rb['check_in'] else ''
+                rb['check_out'] = rb['check_out'].isoformat() if rb['check_out'] else ''
+
+            return Response({
+                'success': True,
+                'kpi': {
+                    'total_bookings': total_bookings,
+                    'total_revenue': round(total_revenue, 2),
+                    'avg_booking_value': round(avg_booking_value, 2),
+                    'conversion_rate': conversion_rate,
+                    'cancelled_count': cancelled_count,
+                    'booking_growth': booking_growth,
+                    'revenue_growth': revenue_growth,
+                    'total_hotels': Hotel.objects.count(),
+                },
+                'revenue_over_time': revenue_over_time,
+                'bookings_over_time': bookings_over_time,
+                'cumulative_revenue': cumulative,
+                'status_distribution': status_dist,
+                'payment_distribution': payment_dist,
+                'top_hotels': top_hotels,
+                'room_type_distribution': room_dist,
+                'recent_bookings': recent,
+                'period': period,
+            })
+        except Exception as e:
+            logger.error(f"Analytics error: {e}")
+            return get_safe_error_response('Error generating analytics', status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=True, methods=['post'])
     @transaction.atomic

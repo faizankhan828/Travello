@@ -20,6 +20,7 @@ def api_root(request):
             'auth': '/api/auth/',
             'hotels': '/api/hotels/',
             'bookings': '/api/bookings/',
+            'reviews': '/api/reviews/',
             'scraper': '/api/scraper/',
             'token': '/api/token/',
             'token_refresh': '/api/token/refresh/',
@@ -34,6 +35,7 @@ urlpatterns = [
     path('api/', include('hotels.urls')),
     path('api/scraper/', include('scraper.urls')),
     path('api/itineraries/', include('itineraries.urls')),
+    path('api/reviews/', include('reviews.urls')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]

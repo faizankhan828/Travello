@@ -1,0 +1,180 @@
+{
+  "destinations": {
+    "Lahore": {
+      "description": "Cultural capital of Pakistan, known for Mughal-era architecture, vibrant food scene, and rich history.",
+      "best_season": "October to March (cool weather)",
+      "avg_hotel_price_pkr": {"budget": 5000, "mid_range": 15000, "luxury": 35000},
+      "top_attractions": [
+        {"name": "Badshahi Mosque", "type": "heritage", "entry_fee": 0, "rating": 9.5},
+        {"name": "Lahore Fort", "type": "heritage", "entry_fee": 200, "rating": 9.4},
+        {"name": "Shalimar Gardens", "type": "garden", "entry_fee": 100, "rating": 9.3},
+        {"name": "Wazir Khan Mosque", "type": "heritage", "entry_fee": 0, "rating": 9.2},
+        {"name": "Food Street Gawalmandi", "type": "food", "entry_fee": 0, "rating": 8.7},
+        {"name": "Minar-e-Pakistan", "type": "monument", "entry_fee": 100, "rating": 8.9},
+        {"name": "Lahore Museum", "type": "museum", "entry_fee": 200, "rating": 9.0},
+        {"name": "Anarkali Bazaar", "type": "shopping", "entry_fee": 0, "rating": 8.5},
+        {"name": "Jilani Park", "type": "park", "entry_fee": 50, "rating": 8.3}
+      ],
+      "popular_hotels": [
+        {"name": "Pearl Continental Lahore", "stars": 5, "price_range": "30000-50000", "rating": 9.2, "amenities": ["WiFi", "Pool", "Spa", "Gym", "Restaurant"]},
+        {"name": "Avari Hotel Lahore", "stars": 5, "price_range": "25000-40000", "rating": 8.8, "amenities": ["WiFi", "Gym", "Restaurant", "Conference"]},
+        {"name": "Marriott Hotel Lahore", "stars": 5, "price_range": "28000-45000", "rating": 9.0, "amenities": ["WiFi", "Pool", "Spa", "Gym", "Restaurant"]},
+        {"name": "Luxus Grand Hotel", "stars": 4, "price_range": "25000-38000", "rating": 9.1, "amenities": ["WiFi", "Pool", "Restaurant", "Concierge"]},
+        {"name": "Faletti's Hotel", "stars": 4, "price_range": "12000-22000", "rating": 8.5, "amenities": ["WiFi", "Restaurant", "Heritage"]},
+        {"name": "Best Western Lahore", "stars": 3, "price_range": "10000-16000", "rating": 8.2, "amenities": ["WiFi", "Breakfast", "Shuttle"]},
+        {"name": "Hotel One Gulberg", "stars": 3, "price_range": "6000-10000", "rating": 7.9, "amenities": ["WiFi", "Restaurant"]},
+        {"name": "Hospitality Inn", "stars": 4, "price_range": "13000-20000", "rating": 8.4, "amenities": ["WiFi", "Pool", "Restaurant", "Kids Zone"]}
+      ],
+      "local_cuisine": ["Nihari", "Lahori Karahi", "Paye", "Seekh Kebab", "Falooda", "Kulfi"],
+      "tips": ["Visit Walled City on foot for the best experience", "Try food from Gawalmandi and Lakshmi Chowk", "Badshahi Mosque is best at sunset"]
+    },
+    "Islamabad": {
+      "description": "Modern capital city of Pakistan, known for its lush greenery, Margalla Hills, and diplomatic enclave.",
+      "best_season": "March to May, September to November",
+      "avg_hotel_price_pkr": {"budget": 6000, "mid_range": 18000, "luxury": 40000},
+      "top_attractions": [
+        {"name": "Faisal Mosque", "type": "religious", "entry_fee": 0, "rating": 9.6},
+        {"name": "Margalla Hills", "type": "nature", "entry_fee": 0, "rating": 9.3},
+        {"name": "Daman-e-Koh", "type": "viewpoint", "entry_fee": 0, "rating": 9.0},
+        {"name": "Pakistan Monument", "type": "monument", "entry_fee": 100, "rating": 8.9},
+        {"name": "Lok Virsa Museum", "type": "museum", "entry_fee": 200, "rating": 8.7},
+        {"name": "Trail 5 Margalla", "type": "hiking", "entry_fee": 0, "rating": 9.1},
+        {"name": "Centaurus Mall", "type": "shopping", "entry_fee": 0, "rating": 8.4}
+      ],
+      "popular_hotels": [
+        {"name": "Serena Hotel Islamabad", "stars": 5, "price_range": "35000-60000", "rating": 9.4, "amenities": ["WiFi", "Pool", "Spa", "Gym", "Restaurant", "Garden"]},
+        {"name": "Marriott Hotel Islamabad", "stars": 5, "price_range": "30000-50000", "rating": 9.1, "amenities": ["WiFi", "Pool", "Gym", "Restaurant"]},
+        {"name": "Best Western Islamabad", "stars": 3, "price_range": "10000-18000", "rating": 8.3, "amenities": ["WiFi", "Breakfast", "Restaurant"]},
+        {"name": "Envoy Continental", "stars": 4, "price_range": "15000-25000", "rating": 8.5, "amenities": ["WiFi", "Restaurant", "Conference"]},
+        {"name": "Hotel One Blue Area", "stars": 3, "price_range": "7000-12000", "rating": 7.8, "amenities": ["WiFi", "Restaurant"]}
+      ],
+      "local_cuisine": ["Sajji", "Chapli Kebab", "Peshawari Naan", "Karahi", "BBQ"],
+      "tips": ["Hike Trail 5 early morning for cooler weather", "Visit Daman-e-Koh at sunset for city views", "Faisal Mosque is busiest on Fridays"]
+    },
+    "Karachi": {
+      "description": "Pakistan's largest city and economic hub, known for beaches, street food, and vibrant nightlife.",
+      "best_season": "November to February (cooler, less humidity)",
+      "avg_hotel_price_pkr": {"budget": 5000, "mid_range": 14000, "luxury": 32000},
+      "top_attractions": [
+        {"name": "Clifton Beach", "type": "beach", "entry_fee": 0, "rating": 8.2},
+        {"name": "Mohatta Palace Museum", "type": "museum", "entry_fee": 200, "rating": 8.8},
+        {"name": "Port Grand", "type": "entertainment", "entry_fee": 0, "rating": 8.5},
+        {"name": "Quaid-e-Azam Mausoleum", "type": "monument", "entry_fee": 0, "rating": 9.2},
+        {"name": "Burns Garden", "type": "park", "entry_fee": 0, "rating": 8.0},
+        {"name": "Do Darya", "type": "food", "entry_fee": 0, "rating": 8.6}
+      ],
+      "popular_hotels": [
+        {"name": "Pearl Continental Karachi", "stars": 5, "price_range": "28000-48000", "rating": 9.0, "amenities": ["WiFi", "Pool", "Spa", "Gym", "Restaurant"]},
+        {"name": "Movenpick Hotel Karachi", "stars": 5, "price_range": "25000-42000", "rating": 8.9, "amenities": ["WiFi", "Pool", "Gym", "Restaurant"]},
+        {"name": "Avari Towers Karachi", "stars": 5, "price_range": "22000-38000", "rating": 8.7, "amenities": ["WiFi", "Pool", "Restaurant"]},
+        {"name": "Hotel One Karachi", "stars": 3, "price_range": "6000-10000", "rating": 7.8, "amenities": ["WiFi", "Restaurant"]}
+      ],
+      "local_cuisine": ["Biryani", "Burns Garden BBQ", "Bun Kebab", "Haleem", "Pani Puri"],
+      "tips": ["Avoid visiting beaches during monsoon season", "Port Grand is best in the evening", "Try street food at Burns Garden area"]
+    },
+    "Hunza Valley": {
+      "description": "Stunning mountainous region in Gilgit-Baltistan known for breathtaking landscapes, Karimabad, and ancient forts.",
+      "best_season": "April to June, September to November",
+      "avg_hotel_price_pkr": {"budget": 3000, "mid_range": 8000, "luxury": 18000},
+      "top_attractions": [
+        {"name": "Baltit Fort", "type": "heritage", "entry_fee": 500, "rating": 9.5},
+        {"name": "Altit Fort", "type": "heritage", "entry_fee": 400, "rating": 9.3},
+        {"name": "Eagle's Nest Viewpoint", "type": "viewpoint", "entry_fee": 0, "rating": 9.7},
+        {"name": "Attabad Lake", "type": "nature", "entry_fee": 0, "rating": 9.6},
+        {"name": "Rakaposhi View Point", "type": "viewpoint", "entry_fee": 0, "rating": 9.4},
+        {"name": "Passu Cones", "type": "nature", "entry_fee": 0, "rating": 9.3}
+      ],
+      "popular_hotels": [
+        {"name": "Serena Altit Fort Residence", "stars": 4, "price_range": "15000-25000", "rating": 9.2, "amenities": ["WiFi", "Restaurant", "Heritage"]},
+        {"name": "Hunza Serena Inn", "stars": 4, "price_range": "12000-20000", "rating": 9.0, "amenities": ["WiFi", "Restaurant", "Garden"]},
+        {"name": "Eagle's Nest Hotel", "stars": 3, "price_range": "6000-12000", "rating": 9.1, "amenities": ["WiFi", "Restaurant", "Views"]},
+        {"name": "Darbar Hotel Hunza", "stars": 3, "price_range": "4000-8000", "rating": 8.5, "amenities": ["WiFi", "Restaurant"]}
+      ],
+      "local_cuisine": ["Chapshuro", "Dawdo Soup", "Apricot Cake", "Tumuro Tea"],
+      "tips": ["Book hotels well in advance during peak season", "Carry warm clothing even in summer", "Hire a local guide for trekking"]
+    },
+    "Swat Valley": {
+      "description": "Known as the 'Switzerland of Pakistan' for its lush green valleys, rivers, and Buddhist heritage.",
+      "best_season": "March to October",
+      "avg_hotel_price_pkr": {"budget": 3000, "mid_range": 8000, "luxury": 15000},
+      "top_attractions": [
+        {"name": "Malam Jabba Ski Resort", "type": "adventure", "entry_fee": 500, "rating": 9.0},
+        {"name": "Fizagat Park", "type": "park", "entry_fee": 50, "rating": 8.5},
+        {"name": "Swat Museum", "type": "museum", "entry_fee": 100, "rating": 8.7},
+        {"name": "Mingora Bazaar", "type": "shopping", "entry_fee": 0, "rating": 8.3}
+      ],
+      "popular_hotels": [
+        {"name": "Swat Serena Hotel", "stars": 4, "price_range": "12000-20000", "rating": 8.9, "amenities": ["WiFi", "Restaurant", "Garden"]},
+        {"name": "PTDC Motel Swat", "stars": 3, "price_range": "5000-10000", "rating": 8.0, "amenities": ["WiFi", "Restaurant"]}
+      ],
+      "local_cuisine": ["Chapli Kebab", "Lamb Karahi", "Fresh Trout", "Green Tea"],
+      "tips": ["Visit Malam Jabba in winter for skiing", "The drive from Islamabad is scenic but long"]
+    },
+    "Murree": {
+      "description": "Popular hill station near Islamabad, known as a summer retreat with colonial architecture and pine forests.",
+      "best_season": "May to September (summer), December to February (snow)",
+      "avg_hotel_price_pkr": {"budget": 4000, "mid_range": 10000, "luxury": 22000},
+      "top_attractions": [
+        {"name": "Mall Road", "type": "shopping", "entry_fee": 0, "rating": 8.5},
+        {"name": "Pindi Point", "type": "viewpoint", "entry_fee": 50, "rating": 8.7},
+        {"name": "Patriata (New Murree)", "type": "nature", "entry_fee": 300, "rating": 8.8},
+        {"name": "Ayubia National Park", "type": "nature", "entry_fee": 100, "rating": 9.0}
+      ],
+      "popular_hotels": [
+        {"name": "Pearl Continental Bhurban", "stars": 5, "price_range": "25000-45000", "rating": 9.1, "amenities": ["WiFi", "Pool", "Spa", "Restaurant", "Golf"]},
+        {"name": "Lockwood Hotel Murree", "stars": 3, "price_range": "6000-12000", "rating": 8.2, "amenities": ["WiFi", "Restaurant"]},
+        {"name": "Shangrila Resort Murree", "stars": 4, "price_range": "10000-18000", "rating": 8.6, "amenities": ["WiFi", "Restaurant", "Views"]}
+      ],
+      "local_cuisine": ["Kashmiri Chai", "Corn on the Cob", "Pakoras"],
+      "tips": ["Book hotels early during summer weekends — Murree gets very crowded", "Avoid rainy season for clear views"]
+    },
+    "Peshawar": {
+      "description": "One of the oldest cities in South Asia, rich in Pashtun culture, bazaars, and historical sites.",
+      "best_season": "October to March",
+      "avg_hotel_price_pkr": {"budget": 3000, "mid_range": 8000, "luxury": 15000},
+      "top_attractions": [
+        {"name": "Peshawar Museum", "type": "museum", "entry_fee": 100, "rating": 8.8},
+        {"name": "Bala Hisar Fort", "type": "heritage", "entry_fee": 0, "rating": 8.5},
+        {"name": "Qissa Khwani Bazaar", "type": "shopping", "entry_fee": 0, "rating": 9.0},
+        {"name": "Mahabat Khan Mosque", "type": "heritage", "entry_fee": 0, "rating": 8.9}
+      ],
+      "popular_hotels": [
+        {"name": "Pearl Continental Peshawar", "stars": 5, "price_range": "20000-35000", "rating": 8.8, "amenities": ["WiFi", "Pool", "Restaurant", "Gym"]},
+        {"name": "Shelton's Rezidor", "stars": 3, "price_range": "6000-12000", "rating": 8.0, "amenities": ["WiFi", "Restaurant"]}
+      ],
+      "local_cuisine": ["Chapli Kebab", "Namkeen Gosht", "Charsi Tikka", "Peshawari Ice Cream"],
+      "tips": ["Explore Qissa Khwani Bazaar for authentic experience", "Hire a local guide in the old city"]
+    }
+  },
+  "room_types": {
+    "single": {"description": "Single bed room for 1 guest", "typical_occupancy": 1},
+    "double": {"description": "Double/twin bed room for 2 guests", "typical_occupancy": 2},
+    "triple": {"description": "Room with 3 beds for 3 guests", "typical_occupancy": 3},
+    "family": {"description": "Larger room suitable for families with children", "typical_occupancy": 4},
+    "suite": {"description": "Premium suite with separate living area", "typical_occupancy": 2},
+    "deluxe": {"description": "Upgraded room with premium amenities and views", "typical_occupancy": 2},
+    "dormitory": {"description": "Shared accommodation, budget-friendly", "typical_occupancy": 6},
+    "entire": {"description": "Full apartment/property rental", "typical_occupancy": 6}
+  },
+  "seasonal_trends": {
+    "peak_season": {
+      "months": ["December", "January", "March", "April", "July", "August"],
+      "note": "Higher prices, advance booking recommended. Northern areas peak in summer, cities in winter."
+    },
+    "off_season": {
+      "months": ["February", "June", "September"],
+      "note": "Lower prices, fewer crowds, great deals available."
+    },
+    "monsoon": {
+      "months": ["July", "August", "September"],
+      "note": "Heavy rains especially in Punjab and KPK. Avoid northern travel during landslide risk."
+    }
+  },
+  "booking_tips": [
+    "Book at least 2 weeks in advance for better rates.",
+    "Compare prices across room types — sometimes suites are discounted.",
+    "Check cancellation policies before booking.",
+    "Northern area hotels fill up fast in summer — book 1-2 months ahead.",
+    "PKR prices on Travello include all taxes."
+  ]
+}

@@ -1,0 +1,41 @@
+# ── Travello Frontend .dockerignore ─────────────────────
+# Excluded from Docker build context to keep builds fast.
+
+# Version control
+.git/
+.gitignore
+
+# Dependencies (re-installed in builder stage via npm ci)
+node_modules/
+
+# Build output (re-built in builder stage)
+build/
+dist/
+
+# Environment secrets
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing & coverage
+coverage/
+.nyc_output/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Documentation
+*.md
+
+# Docker (don't send docker config into its own build)
+Dockerfile
+.dockerignore

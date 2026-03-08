@@ -1,0 +1,176 @@
+# ─────────────────────────────────────────────────────────
+# Travello – Docker Compose  (dev / prod / LAN)
+# ─────────────────────────────────────────────────────────
+#
+#  Quick start    :  docker compose up --build
+#  Detached       :  docker compose up -d --build
+#  Logs           :  docker compose logs -f backend
+#  Stop           :  docker compose down
+#  Full reset     :  docker compose down -v   (⚠ deletes volumes)
+#  Migrations     :  docker compose exec backend python manage.py migrate
+#  Superuser      :  docker compose exec backend python manage.py createsuperuser
+#  Shell          :  docker compose exec backend bash
+#
+#  LAN / Mobile   :  Open http://<your-ip>:3000 on any device
+#                     on the same Wi-Fi (ports already on 0.0.0.0).
+# ─────────────────────────────────────────────────────────
+
+services:
+
+  # ────────────────────────────────────────────────────────
+  #  PostgreSQL 16  — primary datastore
+  # ────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine            # Alpine = ~80 MB vs ~400 MB for full
+    container_name: travello-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       travello_db
+      POSTGRES_USER:     travello
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-travello_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend-net                      # Only backend can reach the DB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travello -d travello_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # No host port — DB is internal only.
+    # Uncomment for local debugging:
+    # ports:
+    #   - "5432:5432"
+
+  # ────────────────────────────────────────────────────────
+  #  Redis 7  — caching layer (scraper results, sessions)
+  # ────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine                # Alpine = ~15 MB
+    container_name: travello-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+        --maxmemory 128mb
+        --maxmemory-policy allkeys-lru
+        --save 60 1000
+        --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend-net                      # Only backend can reach Redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    # No host port — Redis is internal only.
+    # Uncomment for local debugging:
+    # ports:
+    #   - "6379:6379"
+
+  # ────────────────────────────────────────────────────────
+  #  Django Backend  — REST API + Puppeteer scraper
+  # ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: travello-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env                   # Your API keys (Gemini, Stripe, etc.)
+    environment:
+      # Docker-internal overrides (take precedence over .env)
+      DATABASE_URL:          postgres://travello:${DB_PASSWORD:-travello_secret}@db:5432/travello_db
+      REDIS_URL:             redis://redis:6379/0
+      DEBUG:                 ${DEBUG:-True}
+      ALLOWED_HOSTS:         localhost,127.0.0.1,backend,0.0.0.0,${EXTRA_HOSTS:-}
+      CORS_ALLOW_ALL_ORIGINS: "True"
+    volumes:
+      - backend_data:/app/data           # SQLite fallback / dataset persistence
+      - backend_media:/app/media         # User-uploaded images
+      - backend_static:/app/staticfiles  # Collected static files
+    ports:
+      - "8000:8000"                      # Host:Container — accessible on LAN
+    networks:
+      - backend-net                      # → DB + Redis
+      - frontend-net                     # ← Frontend reaches backend here
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ────────────────────────────────────────────────────────
+  #  React Frontend  — production SPA served by nginx
+  # ────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL:      ${REACT_APP_API_URL:-http://localhost:8000}
+        REACT_APP_API_BASE_URL: ${REACT_APP_API_URL:-http://localhost:8000}
+    container_name: travello-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"                        # Host 3000 → Container nginx 80
+    networks:
+      - frontend-net                     # Can reach backend, NOT db/redis
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+
+# ──────────────────────────────────────────────────────────
+#  Named Volumes — persistent data across restarts
+# ──────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+    name: travello-pgdata
+  redis_data:
+    driver: local
+    name: travello-redis
+  backend_data:
+    driver: local
+    name: travello-data
+  backend_media:
+    driver: local
+    name: travello-media
+  backend_static:
+    driver: local
+    name: travello-static
+
+
+# ──────────────────────────────────────────────────────────
+#  Docker Networks — service isolation
+# ──────────────────────────────────────────────────────────
+#
+#  backend-net   :   backend ↔ db ↔ redis    (frontend CANNOT reach db)
+#  frontend-net  :   frontend ↔ backend      (public-facing tier)
+#
+#  This is a two-tier network topology:
+#    [ Internet ] → frontend (nginx:80) → backend (gunicorn:8000) → db / redis
+#
+networks:
+  backend-net:
+    driver: bridge
+    name: travello-backend-net
+  frontend-net:
+    driver: bridge
+    name: travello-frontend-net

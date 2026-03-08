@@ -26,6 +26,7 @@ class Notification(models.Model):
         ('booking',  'Booking'),
         ('payment',  'Payment'),
         ('itinerary','Itinerary'),
+        ('review',   'Review'),
         ('promo',    'Promotion'),
         ('system',   'System'),
     ]
@@ -91,6 +92,16 @@ class Notification(models.Model):
             message=f'Your AI-generated itinerary for {city} is ready to explore!',
             category='itinerary', priority='normal', icon='🗺️',
             link='/itinerary',
+        )
+
+    @classmethod
+    def review_published(cls, user, hotel_name):
+        return cls.create_for_user(
+            user,
+            title='Review Published',
+            message=f'Your review for {hotel_name} has been published. Thank you for sharing your experience!',
+            category='review', priority='normal', icon='⭐',
+            link='/my-reviews',
         )
 
 

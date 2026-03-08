@@ -37,6 +37,9 @@ const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const AdminBookings = lazy(() => import('./components/AdminBookings'));
 const TravelJournal = lazy(() => import('./components/TravelJournal'));
 const ItineraryPlanner = lazy(() => import('./components/ItineraryPlanner'));
+const ReviewForm = lazy(() => import('./components/ReviewForm'));
+const ReviewsPage = lazy(() => import('./components/ReviewsPage'));
+const MyReviews = lazy(() => import('./components/MyReviews'));
 
 // Loading component
 const LoadingSpinner = () => (
@@ -110,6 +113,9 @@ function App() {
                   <Route path="/admin-dashboard" element={<AdminDashboard />} />
                   <Route path="/journal" element={<TravelJournal />} />
                   <Route path="/itinerary" element={<ItineraryPlanner />} />
+                  <Route path="/reviews" element={<ReviewsPage />} />
+                  <Route path="/my-reviews" element={<MyReviews />} />
+                  <Route path="/write-review" element={<ReviewForm />} />
                 </Routes>
               </Suspense>
             </div>

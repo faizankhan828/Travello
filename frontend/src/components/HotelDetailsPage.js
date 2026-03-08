@@ -36,6 +36,7 @@ import {
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { reviewAPI } from '../services/api';
 
 // Fix for default marker icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -402,6 +403,8 @@ const HotelDetailsPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [selectedRoomCount, setSelectedRoomCount] = useState(0);
+  const [hotelReviews, setHotelReviews] = useState([]);
+  const [reviewAnalytics, setReviewAnalytics] = useState(null);
 
   // Redirect if no hotel data
   useEffect(() => {
@@ -409,6 +412,19 @@ const HotelDetailsPage = () => {
       navigate('/hotels/search-results');
     }
   }, [hotel, navigate]);
+
+  // Load real reviews for this hotel
+  useEffect(() => {
+    if (hotel?.id) {
+      Promise.all([
+        reviewAPI.list({ hotel: hotel.id, ordering: '-created_at' }),
+        reviewAPI.analytics(hotel.id),
+      ]).then(([reviewsRes, analyticsRes]) => {
+        setHotelReviews(reviewsRes.data || []);
+        setReviewAnalytics(analyticsRes.data || null);
+      }).catch(() => {});
+    }
+  }, [hotel?.id]);
 
   // Calculate nights
   const nights = useMemo(() => {
@@ -937,51 +953,102 @@ const HotelDetailsPage = () => {
             <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Guest reviews</h2>
-                <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
-                  See availability
+                <button
+                  onClick={() => navigate(`/reviews?hotel=${hotel.id || ''}`)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  See all reviews
                 </button>
               </div>
 
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-12 h-12 bg-blue-600 text-white rounded-lg rounded-bl-none flex items-center justify-center text-xl font-bold">
-                  {(hotel.rating || 7).toFixed(1)}
+                  {reviewAnalytics ? reviewAnalytics.average_rating.toFixed(1) : (hotel.rating || 7).toFixed(1)}
                 </div>
                 <div>
-                  <span className="font-semibold text-gray-900 dark:text-white">{getRatingLabel(hotel.rating || 7)}</span>
-                  <span className="text-gray-500 dark:text-gray-400 ml-2">· {hotel.review_count || Math.floor(Math.random() * 2000) + 500} reviews</span>
-                  <button className="ml-2 text-blue-600 hover:underline">Read all reviews</button>
+                  <span className="font-semibold text-gray-900 dark:text-white">
+                    {getRatingLabel(reviewAnalytics ? reviewAnalytics.average_rating : (hotel.rating || 7))}
+                  </span>
+                  <span className="text-gray-500 dark:text-gray-400 ml-2">
+                    · {reviewAnalytics ? reviewAnalytics.total_reviews : (hotel.review_count || 0)} reviews
+                  </span>
                 </div>
               </div>
 
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Categories:</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                <ReviewCategoryBar label="Staff" score={reviewCategories.staff} />
-                <ReviewCategoryBar label="Facilities" score={reviewCategories.facilities} />
-                <ReviewCategoryBar label="Cleanliness" score={reviewCategories.cleanliness} />
-                <ReviewCategoryBar label="Comfort" score={reviewCategories.comfort} />
-                <ReviewCategoryBar label="Value for money" score={reviewCategories.valueForMoney} />
-                <ReviewCategoryBar label="Location" score={reviewCategories.location} />
-                <ReviewCategoryBar label="Free Wifi" score={reviewCategories.freeWifi} />
-              </div>
+              {/* Analytics category bars from real data or fallback */}
+              {reviewAnalytics && reviewAnalytics.aspect_averages ? (
+                <>
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Rating Breakdown:</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+                    {Object.entries(reviewAnalytics.aspect_averages).map(([key, val]) => (
+                      <ReviewCategoryBar key={key} label={key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} score={val * 2} />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Categories:</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+                    <ReviewCategoryBar label="Staff" score={reviewCategories.staff} />
+                    <ReviewCategoryBar label="Facilities" score={reviewCategories.facilities} />
+                    <ReviewCategoryBar label="Cleanliness" score={reviewCategories.cleanliness} />
+                    <ReviewCategoryBar label="Comfort" score={reviewCategories.comfort} />
+                    <ReviewCategoryBar label="Value for money" score={reviewCategories.valueForMoney} />
+                    <ReviewCategoryBar label="Location" score={reviewCategories.location} />
+                    <ReviewCategoryBar label="Free Wifi" score={reviewCategories.freeWifi} />
+                  </div>
+                </>
+              )}
 
-              {/* Review Topics */}
-              <div className="mt-6">
-                <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Select topics to read reviews:</h4>
-                <div className="flex flex-wrap gap-2">
-                  {['Room', 'Location', 'Breakfast', 'Clean', 'Bathroom'].map(topic => (
-                    <button
-                      key={topic}
-                      className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-full text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      + {topic}
-                    </button>
+              {/* Real guest reviews */}
+              {hotelReviews.length > 0 && (
+                <div className="mt-6 space-y-4">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Recent Guest Reviews:</h3>
+                  {hotelReviews.slice(0, 3).map((review) => (
+                    <div key={review.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                            {review.user_details?.first_name?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-white">
+                              {review.user_details?.first_name || 'Guest'}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {new Date(review.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                              {review.trip_type && ` · ${review.trip_type} trip`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <FaStar key={s} className={`text-xs ${s <= review.overall_rating ? 'text-amber-400' : 'text-gray-300 dark:text-gray-600'}`} />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-800 dark:text-white mb-1">{review.title}</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3">{review.content}</p>
+                      {review.replies?.length > 0 && (
+                        <div className="mt-2 ml-4 p-2 bg-blue-50 dark:bg-blue-900/20 border-l-2 border-blue-500 rounded text-xs text-gray-600 dark:text-gray-300">
+                          <span className="font-bold text-blue-700 dark:text-blue-400">🏨 Hotel Response: </span>
+                          {review.replies[0].content}
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
-              </div>
+              )}
 
-              <button className="mt-4 px-4 py-2 border border-blue-600 text-blue-600 rounded-lg font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
-                Read all reviews
+              {hotelReviews.length === 0 && (
+                <p className="mt-6 text-gray-500 dark:text-gray-400 text-sm">No guest reviews yet. Be the first to share your experience!</p>
+              )}
+
+              <button
+                onClick={() => navigate(`/reviews?hotel=${hotel.id || ''}`)}
+                className="mt-4 px-4 py-2 border border-blue-600 text-blue-600 rounded-lg font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+              >
+                {hotelReviews.length > 0 ? `Read all ${reviewAnalytics?.total_reviews || hotelReviews.length} reviews` : 'View Reviews'}
               </button>
             </div>
 

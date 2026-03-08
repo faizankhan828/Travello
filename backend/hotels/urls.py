@@ -4,7 +4,13 @@ from .views import (
     HotelViewSet, BookingViewSet, RealTimeHotelSearchView, 
     RoomAvailabilityView, BookingPreviewView, ScrapedHotelBookingView
 )
-from .recommendation_views import DestinationRecommendationView
+from .recommendation_views import (
+    DestinationRecommendationView,
+    recommendation_start,
+    recommendation_answer,
+    recommendation_status,
+    recommendation_results,
+)
 
 # Try importing ML views, but make them optional
 ML_VIEWS_AVAILABLE = False
@@ -40,8 +46,14 @@ urlpatterns += [
     path('bookings/preview/', BookingPreviewView.as_view(), name='booking-preview'),
     path('bookings/scraped/', ScrapedHotelBookingView.as_view(), name='scraped-hotel-booking'),
     
-    # Recommendation engine endpoint
+    # Recommendation engine endpoint (legacy — static knowledge)
     path('recommendations/', DestinationRecommendationView.as_view(), name='recommendations'),
+    
+    # AI Recommendation engine (conversational + real-time scraping)
+    path('recommendations/start/', recommendation_start, name='recommendation-start'),
+    path('recommendations/answer/', recommendation_answer, name='recommendation-answer'),
+    path('recommendations/status/<str:session_id>/', recommendation_status, name='recommendation-status'),
+    path('recommendations/results/<str:session_id>/', recommendation_results, name='recommendation-results'),
     
     # Router endpoints
     path('', include(router.urls)),

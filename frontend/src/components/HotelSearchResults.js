@@ -35,11 +35,15 @@ import {
   FaPercent,
   FaThumbsUp,
   FaMap,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaRobot
 } from 'react-icons/fa';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+
+const API_ROOT = (process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000')
+  .replace(/\/api\/?$/, '');
 
 // Fix for default marker icons in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -664,6 +668,23 @@ const HotelCard = ({ hotel, searchParams, isFavorite, onToggleFavorite, onBook, 
             )}
           </div>
 
+          {/* AI Match Info (for AI recommendations) */}
+          {hotel.match_score > 0 && (
+            <div className="flex items-start gap-2 my-2 bg-blue-50 dark:bg-blue-900/15 border border-blue-100 dark:border-blue-800 rounded-lg px-3 py-2">
+              <FaRobot className="text-blue-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 rounded-full">
+                    {Math.round(hotel.match_score * 100)}% match
+                  </span>
+                </div>
+                {hotel.ai_reason && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 leading-snug">{hotel.ai_reason}</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Amenities */}
           <div className="flex flex-wrap gap-2 my-3">
             {hotel.wifi_available && (
@@ -791,6 +812,14 @@ const HotelSearchResults = () => {
   const navigate = useNavigate();
   const initialSearchParams = location.state || {};
 
+  // Detect AI recommendation mode
+  const isAiRecommendation = !!initialSearchParams.aiRecommendation;
+  const aiHotels = initialSearchParams.aiHotels || [];
+  const aiSummary = initialSearchParams.aiSummary || '';
+  const aiProfile = initialSearchParams.aiProfile || {};
+  const aiTotalFound = initialSearchParams.aiTotalFound || 0;
+  const aiMatchedAttractions = initialSearchParams.aiMatchedAttractions || [];
+
   // Search params state (mutable)
   const [searchParams, setSearchParams] = useState(initialSearchParams);
 
@@ -806,12 +835,12 @@ const HotelSearchResults = () => {
   // State
   const [hotels, setHotels] = useState([]);
   const [filteredHotels, setFilteredHotels] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isAiRecommendation);
   const [error, setError] = useState('');
   const [scraperMeta, setScraperMeta] = useState(null);
 
   // Sorting
-  const [sortBy, setSortBy] = useState('best_match');
+  const [sortBy, setSortBy] = useState(isAiRecommendation ? 'ai_ranking' : 'best_match');
 
   // Filters
   const [filters, setFilters] = useState({
@@ -871,14 +900,140 @@ const HotelSearchResults = () => {
     fetchHotelsWithParams(newSearchParams);
   };
 
-  // Fetch hotels on mount
+  // Fetch hotels on mount (or load AI results directly)
   useEffect(() => {
-    fetchHotels();
+    if (isAiRecommendation && aiHotels.length > 0) {
+      loadAiRecommendations();
+    } else {
+      fetchHotels();
+    }
     // Load favorites from localStorage
     const savedFavorites = JSON.parse(localStorage.getItem('favoriteHotels') || '[]');
     setFavorites(new Set(savedFavorites));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load AI recommendations directly (skip scraping)
+  const loadAiRecommendations = () => {
+    const seenKeys = new Set();
+    const params = searchParams;
+    const transformedHotels = aiHotels.reduce((acc, hotel, index) => {
+      let key = (hotel.url || '').toLowerCase();
+      if (key) { key = key.split('?')[0]; }
+      else { key = (hotel.name || '').toLowerCase().trim(); }
+      if (!key || seenKeys.has(key)) return acc;
+      seenKeys.add(key);
+
+      let pricePerNight = hotel.price_per_night || hotel.double_bed_price_per_day || null;
+      if (!pricePerNight && hotel.price) {
+        const priceMatch = hotel.price.replace(/,/g, '').match(/\d+(\.\d+)?/);
+        if (priceMatch) pricePerNight = parseFloat(priceMatch[0]) || null;
+      }
+      if (!pricePerNight && hotel.total_stay_price && hotel.nights > 0) {
+        pricePerNight = Math.round(hotel.total_stay_price / hotel.nights);
+      }
+      pricePerNight = pricePerNight || null;
+
+      const ratingValue = typeof hotel.rating === 'number'
+        ? hotel.rating
+        : typeof hotel.review_rating === 'number'
+        ? hotel.review_rating
+        : parseFloat((hotel.review_rating || hotel.rating || '0').toString()) || 0;
+
+      let stars = hotel.stars || null;
+
+      let reviewNum = hotel.review_count || hotel.review_count_num || null;
+      if (reviewNum && typeof reviewNum !== 'number') {
+        const revMatch = reviewNum.toString().replace(/,/g, '').match(/\d+/);
+        reviewNum = revMatch ? parseInt(revMatch[0]) : null;
+      }
+
+      const hotelAddress = hotel.location || hotel.location_area || hotel.address || `${params.destination || 'Lahore'}, Pakistan`;
+      const roomType = hotel.room_type || 'Standard Room';
+      const maxOccupancy = hotel.max_occupancy || 2;
+
+      acc.push({
+        id: `ai-${acc.length}`,
+        name: hotel.name || 'Hotel',
+        url: hotel.url || null,
+        city: params.destination || 'Lahore',
+        address: hotelAddress,
+        location: hotelAddress,
+        description: hotel.amenities?.join(', ') || hotel.room_info || 'Hotel',
+        rating: ratingValue,
+        stars: stars,
+        property_type: hotel.property_type || 'Hotel',
+        availability_status: hotel.availability_status || 'Available',
+        rooms_left: hotel.rooms_left || null,
+        is_limited: hotel.is_limited || false,
+        has_deal: hotel.has_deal || false,
+        deal_label: hotel.deal_label || null,
+        available_rooms: hotel.rooms_left || 10,
+        image: hotel.image_url || hotel.image || `https://via.placeholder.com/400x300?text=${encodeURIComponent(hotel.name?.slice(0, 20) || 'Hotel')}`,
+        review_count: reviewNum,
+        rating_label: hotel.rating_label || null,
+        distance_from_center: hotel.distance_from_center || '',
+        wifi_available: hotel.wifi_available || (hotel.amenities?.some(a => a.toLowerCase().includes('wifi')) ?? false),
+        parking_available: hotel.parking_available || (hotel.amenities?.some(a => a.toLowerCase().includes('parking')) ?? false),
+        pool_available: hotel.pool_available || false,
+        breakfast_available: hotel.breakfast_available || false,
+        amenities: hotel.amenities || [],
+        price_per_night: pricePerNight,
+        double_bed_price_per_day: pricePerNight,
+        total_stay_price: hotel.total_stay_price || null,
+        original_price: hotel.original_price || null,
+        taxes_text: hotel.taxes_text || null,
+        nights: hotel.nights || 1,
+        is_scraped: true,
+        room_type: roomType,
+        room_info: hotel.room_info || roomType,
+        max_occupancy: maxOccupancy,
+        occupancy_match: hotel.occupancy_match !== false,
+        meal_plan: hotel.meal_plan || null,
+        cancellation_policy: hotel.cancellation_policy || null,
+        rooms: hotel.rooms?.length ? hotel.rooms : [{
+          room_type: roomType,
+          max_occupancy: maxOccupancy,
+          price_per_night: pricePerNight,
+          total_price: hotel.total_stay_price || null,
+          cancellation_policy: hotel.cancellation_policy || null,
+          meal_plan: hotel.meal_plan || null,
+          availability: hotel.availability_status || 'Available',
+          occupancy_match: hotel.occupancy_match !== false,
+        }],
+        latitude: hotel.latitude || 31.5204 + (Math.random() - 0.5) * 0.1,
+        longitude: hotel.longitude || 74.3587 + (Math.random() - 0.5) * 0.1,
+        // AI-specific fields
+        match_score: hotel.match_score || 0,
+        ai_reason: hotel.ai_reason || '',
+      });
+      return acc;
+    }, []);
+
+    setHotels(transformedHotels);
+    setFilteredHotels(transformedHotels);
+
+    if (transformedHotels.length > 0) {
+      const prices = transformedHotels.map(h => h.double_bed_price_per_day).filter(p => p > 0);
+      if (prices.length > 0) {
+        const minP = Math.min(...prices);
+        const maxP = Math.max(...prices);
+        setActualPriceRange({ min: minP, max: maxP });
+        setPriceRange({ min: minP, max: maxP });
+      }
+    }
+
+    setScraperMeta({
+      verified: true,
+      coverage_pct: null,
+      reported_count: aiTotalFound || transformedHotels.length,
+      scraped_count: transformedHotels.length,
+      verification_notes: [],
+      elapsed_seconds: null,
+    });
+
+    setLoading(false);
+  };
 
   const fetchHotels = async () => {
     fetchHotelsWithParams(searchParams);
@@ -889,7 +1044,7 @@ const HotelSearchResults = () => {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8000/api/scraper/scrape-hotels/', {
+      const response = await fetch(`${API_ROOT}/api/scraper/scrape-hotels/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -927,12 +1082,12 @@ const HotelSearchResults = () => {
         for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
           await new Promise(r => setTimeout(r, POLL_INTERVAL));
           try {
-            const statusRes = await fetch(`http://localhost:8000/api/scraper/job-status/${data.job_id}/`);
+            const statusRes = await fetch(`${API_ROOT}/api/scraper/job-status/${data.job_id}/`);
             const statusData = await statusRes.json();
             console.log(`[poll ${attempt + 1}] status=${statusData.status} hotels=${statusData.hotel_count}`);
 
             if (statusData.status === 'COMPLETED' || statusData.status === 'PARTIAL') {
-              const resultsRes = await fetch(`http://localhost:8000/api/scraper/results/${data.job_id}/`);
+              const resultsRes = await fetch(`${API_ROOT}/api/scraper/results/${data.job_id}/`);
               const resultsData = await resultsRes.json();
               pollHotels = resultsData.hotels || [];
               pollMeta = resultsData.meta || {};
@@ -1186,6 +1341,9 @@ const HotelSearchResults = () => {
 
     // Sorting
     switch (sortBy) {
+      case 'ai_ranking':
+        result.sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
+        break;
       case 'best_match':
         result.sort((a, b) => {
           const scoreA = (a.rating || 0) * 10 + (a.has_deal ? 5 : 0);
@@ -1514,7 +1672,7 @@ const HotelSearchResults = () => {
             <div className="max-w-7xl mx-auto flex items-center justify-center gap-3 text-sm">
               <FaExclamationTriangle />
               <span className="font-medium">
-                Showing {scraperMeta.scraped_count} of {scraperMeta.reported_count} properties — real-time prices from Booking.com
+                Showing {scraperMeta.scraped_count} of {scraperMeta.reported_count} properties{isAiRecommendation ? ' — AI-powered recommendations by Travello' : ' — real-time prices from Booking.com'}
               </span>
             </div>
           </div>
@@ -1543,6 +1701,7 @@ const HotelSearchResults = () => {
             </span>
 
             {[
+              ...(isAiRecommendation ? [{ id: 'ai_ranking', label: 'AI Ranking', icon: <FaRobot className="text-blue-400" /> }] : []),
               { id: 'best_match', label: 'Best match', icon: <FaThumbsUp /> },
               { id: 'top_reviewed', label: 'Top reviewed', icon: <FaStar className="text-yellow-500" /> },
               { id: 'lowest_price', label: 'Lowest price first', icon: null },
@@ -1666,6 +1825,40 @@ const HotelSearchResults = () => {
                     {totalPages > 1 && ` • Page ${currentPage} of ${totalPages}`}
                   </p>
                 </div>
+
+                {/* AI Recommendation Banner */}
+                {isAiRecommendation && (
+                  <div className="mb-4 space-y-3">
+                    {aiSummary && (
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                        <div className="flex gap-3">
+                          <div className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center shrink-0">
+                            <FaRobot className="text-white text-sm" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-1">AI Personalized Recommendations</p>
+                            <p className="text-sm text-blue-700 dark:text-blue-300 leading-relaxed">{aiSummary}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {aiMatchedAttractions.length > 0 && (
+                      <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+                        <p className="text-sm text-amber-800 dark:text-amber-200">
+                          <strong>Hotels near your interests:</strong> {aiMatchedAttractions.join(', ')}
+                        </p>
+                      </div>
+                    )}
+                    {aiProfile && Object.keys(aiProfile).length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {aiProfile.destination && <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium rounded-full">📍 {aiProfile.destination}</span>}
+                        {aiProfile.interests && <span className="px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded-full">🎯 {aiProfile.interests}</span>}
+                        {aiProfile.travel_style && <span className="px-2.5 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full">✨ {aiProfile.travel_style}</span>}
+                        {aiProfile.budget && <span className="px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs font-medium rounded-full">💰 {aiProfile.budget}</span>}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Hotels Grid */}
                 <div className="space-y-4">

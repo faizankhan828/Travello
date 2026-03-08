@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FaArrowLeft } from 'react-icons/fa';
 import { itineraryAPI, chatAPI, paymentAPI } from '../services/api';
 
 /* ──────────────────────────────────────────────
@@ -255,6 +257,7 @@ const DayCard = ({ day, dayIdx, itinerary, loading, onRegenDay, onLock, onReplac
    Main Component
 ────────────────────────────────────────────── */
 export default function ItineraryPlanner() {
+  const navigate = useNavigate();
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
@@ -488,6 +491,15 @@ ${notes ? `<div class="notes-box"><strong>My Notes</strong><br><br>${notes.repla
   /* ── Render ── */
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
+
+      {/* Back to Dashboard */}
+      <button
+        onClick={() => navigate('/dashboard')}
+        className="inline-flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
+      >
+        <FaArrowLeft className="text-xs" />
+        Back to Dashboard
+      </button>
 
       {/* ── Header Banner ── */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 p-6 text-white shadow-xl">

@@ -264,24 +264,17 @@ serve.py
 # Documentation (Temporary/Generated)
 # ============================================
 
-# Keep only essential docs
-*_GUIDE.md
+# Ignore auto-generated/temporary docs
 *_COMPLETE.md
 *_WORKING.md
-*_SETUP.md
-*_CHECKLIST.md
 *_FIXED.md
 OPTIMIZATION*.md
-DEPLOYMENT*.md
 PERFORMANCE*.md
-*.md
 
-# Keep these important docs
+# Keep these project docs
 !README.md
-!API_DOCUMENTATION.md
-!ARCHITECTURE.md
-!QUICK_START.md
-!START_HERE.md
+!ARCHITECTURE_GUIDE.md
+!SCRAPER_GUIDE.md
 
 # ============================================
 # Security

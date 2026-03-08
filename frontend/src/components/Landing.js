@@ -9,24 +9,34 @@ const BackgroundSlider = memo(() => {
   
   const landmarks = useMemo(() => [
     {
-      url: 'https://images.unsplash.com/photo-1629234932140-49db511736c5?w=1920&auto=format&fit=crop&q=80',
-      name: 'Lahore Fort'
+      url: 'https://images.pexels.com/photos/12912453/pexels-photo-12912453.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&fit=crop',
+      name: 'Badshahi Mosque, Lahore',
+      caption: 'Mughal Architecture at its Finest'
     },
     {
-      url: 'https://images.unsplash.com/photo-1622279488067-3a4ca25ce8ff?w=1920&auto=format&fit=crop&q=80',
-      name: 'Minar-e-Pakistan'
+      url: 'https://images.pexels.com/photos/5258953/pexels-photo-5258953.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&fit=crop',
+      name: 'Faisal Mosque, Islamabad',
+      caption: 'Iconic Symbol of Pakistan'
     },
     {
-      url: 'https://images.unsplash.com/photo-1621351089338-8ac55e890845?w=1920&auto=format&fit=crop&q=80',
-      name: 'Badshahi Mosque'
+      url: 'https://images.pexels.com/photos/13659051/pexels-photo-13659051.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&fit=crop',
+      name: 'Lahore Fort',
+      caption: 'UNESCO World Heritage Site'
     },
     {
-      url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&auto=format&fit=crop&q=80',
-      name: 'Mountain Peaks'
+      url: 'https://images.pexels.com/photos/28319618/pexels-photo-28319618.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&fit=crop',
+      name: 'Hunza Valley',
+      caption: 'Paradise on Earth'
     },
     {
-      url: 'https://images.unsplash.com/photo-1567604130498-6a0dc4fcea1c?w=1920&auto=format&fit=crop&q=80',
-      name: 'Faisal Mosque'
+      url: 'https://images.pexels.com/photos/13239874/pexels-photo-13239874.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&fit=crop',
+      name: 'Minar-e-Pakistan, Lahore',
+      caption: 'National Monument of Pakistan'
+    },
+    {
+      url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/Moen_Jo_Daro_%28The_Mond_of_the_Deads%29.jpg/1920px-Moen_Jo_Daro_%28The_Mond_of_the_Deads%29.jpg',
+      name: 'Mohenjo-daro',
+      caption: 'Ancient Indus Valley Civilization'
     }
   ], []);
   
@@ -60,23 +70,31 @@ const BackgroundSlider = memo(() => {
         </motion.div>
       </AnimatePresence>
       {/* Gradient overlay for text readability */}
-      <div className="absolute inset-0 bg-gradient-to-br from-black/50 via-blue-900/40 to-black/60" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-blue-950/40 to-black/70" />
+      <div className="absolute inset-0 bg-gradient-to-r from-sky-900/30 via-transparent to-indigo-900/30" />
       
       {/* Landmark name indicator - Enhanced visibility */}
       <AnimatePresence mode="wait">
         <motion.div
           key={`name-${currentIndex}`}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.5 }}
-          className="absolute bottom-20 sm:bottom-24 right-4 sm:right-8 bg-white/20 backdrop-blur-lg px-4 sm:px-6 py-2 sm:py-3 rounded-full border border-white/30 shadow-lg"
+          className="absolute bottom-20 sm:bottom-24 right-4 sm:right-8 bg-black/30 backdrop-blur-xl px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl border border-white/20 shadow-2xl"
         >
           <div className="flex items-center gap-2 sm:gap-3">
-            <FaMapMarkerAlt className="text-rose-400 text-lg sm:text-xl" style={{ filter: 'drop-shadow(0 0 6px rgba(251, 113, 133, 0.8))' }} />
-            <p className="text-white text-sm sm:text-base md:text-lg font-semibold" style={{ fontFamily: 'Poppins, sans-serif', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
-              {landmarks[currentIndex].name}
-            </p>
+            <FaMapMarkerAlt className="text-rose-400 text-lg sm:text-xl shrink-0" style={{ filter: 'drop-shadow(0 0 6px rgba(251, 113, 133, 0.8))' }} />
+            <div>
+              <p className="text-white text-sm sm:text-base font-bold leading-tight" style={{ fontFamily: 'Poppins, sans-serif', textShadow: '0 2px 4px rgba(0,0,0,0.4)' }}>
+                {landmarks[currentIndex].name}
+              </p>
+              {landmarks[currentIndex].caption && (
+                <p className="text-white/70 text-[10px] sm:text-xs mt-0.5" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  {landmarks[currentIndex].caption}
+                </p>
+              )}
+            </div>
           </div>
         </motion.div>
       </AnimatePresence>

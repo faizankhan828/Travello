@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     'hotels',
     'scraper',
     'itineraries',
+    'reviews',
 ]
 
 MIDDLEWARE = [
@@ -304,6 +305,23 @@ AMADEUS_API_SECRET = config('AMADEUS_API_SECRET', default='')
 
 # WhiteNoise Static Files
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# ============================================
+# CLOUDINARY CONFIGURATION
+# ============================================
+CLOUDINARY_CLOUD_NAME = config('CLOUDINARY_CLOUD_NAME', default='')
+CLOUDINARY_API_KEY = config('CLOUDINARY_API_KEY', default='')
+CLOUDINARY_API_SECRET = config('CLOUDINARY_API_SECRET', default='')
+
+if CLOUDINARY_CLOUD_NAME:
+    import cloudinary
+    cloudinary.config(
+        cloud_name=CLOUDINARY_CLOUD_NAME,
+        api_key=CLOUDINARY_API_KEY,
+        api_secret=CLOUDINARY_API_SECRET,
+        secure=True,
+    )
+
 # ============================================
 # STRIPE PAYMENT SETTINGS
 # ============================================

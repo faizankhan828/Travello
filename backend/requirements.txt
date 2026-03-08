@@ -15,6 +15,7 @@ psycopg2-binary==2.9.9
 whitenoise==6.6.0
 stripe
 sentry-sdk[django]
+cloudinary
 
 # AI/ML packages — optional, comment out for faster installs
 # transformers==4.35.2
