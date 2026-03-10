@@ -608,7 +608,12 @@ const HotelCard = ({ hotel, searchParams, isFavorite, onToggleFavorite, onBook, 
                 <FaPercent className="text-[10px]" /> {hotel.deal_label || 'Deal'}
               </span>
             )}
-            {hotel.is_limited && (
+            {hotel.is_sold_out && (
+              <span className="bg-gray-600 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+                Sold Out
+              </span>
+            )}
+            {hotel.is_limited && !hotel.is_sold_out && (
               <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
                 <FaFire className="text-[10px]" /> {hotel.rooms_left ? `Only ${hotel.rooms_left} left!` : 'Few left!'}
               </span>
@@ -749,7 +754,10 @@ const HotelCard = ({ hotel, searchParams, isFavorite, onToggleFavorite, onBook, 
 
           {/* Room Info & Availability */}
           {hotel.availability_status && (
-            <p className={`text-sm mb-2 ${hotel.is_limited ? 'text-red-600 dark:text-red-400 font-medium' : 'text-green-600 dark:text-green-400'
+            <p className={`text-sm mb-2 ${
+              hotel.is_sold_out ? 'text-gray-500 dark:text-gray-400 font-medium' :
+              hotel.is_limited ? 'text-red-600 dark:text-red-400 font-medium' :
+              'text-green-600 dark:text-green-400'
               }`}>
               <FaClock className="inline mr-1" />
               {hotel.availability_status}
@@ -966,9 +974,10 @@ const HotelSearchResults = () => {
         availability_status: hotel.availability_status || 'Available',
         rooms_left: hotel.rooms_left || null,
         is_limited: hotel.is_limited || false,
+        is_sold_out: hotel.is_sold_out || false,
         has_deal: hotel.has_deal || false,
         deal_label: hotel.deal_label || null,
-        available_rooms: hotel.rooms_left || 10,
+        available_rooms: hotel.rooms_left != null ? hotel.rooms_left : null,
         image: hotel.image_url || hotel.image || `https://via.placeholder.com/400x300?text=${encodeURIComponent(hotel.name?.slice(0, 20) || 'Hotel')}`,
         review_count: reviewNum,
         rating_label: hotel.rating_label || null,
@@ -1154,16 +1163,8 @@ const HotelSearchResults = () => {
             ? hotel.rating
             : parseFloat((hotel.rating || '0').toString()) || 0;
 
-          // ── Star rating ───────────────────────────────────────────────────
-          let stars = hotel.stars || null;
-          if (!stars) {
-            const nameLower = (hotel.name || '').toLowerCase();
-            if (nameLower.includes('pearl continental') || nameLower.includes('marriott') || nameLower.includes('luxury')) stars = 5;
-            else if (nameLower.includes('premier') || nameLower.includes('4 star')) stars = 4;
-            else if (nameLower.includes('comfort') || nameLower.includes('3 star')) stars = 3;
-            else if (nameLower.includes('budget') || nameLower.includes('2 star')) stars = 2;
-            else if (nameLower.includes('hostel') || nameLower.includes('guest house')) stars = 1;
-          }
+          // ── Star rating (real-time from Booking.com) ──────────────────
+          const stars = hotel.stars || null;
 
           // ── Review count ──────────────────────────────────────────────────
           let reviewNum = hotel.review_count || null;
@@ -1194,9 +1195,10 @@ const HotelSearchResults = () => {
             availability_status: hotel.availability_status || 'Available',
             rooms_left: hotel.rooms_left || null,
             is_limited: hotel.is_limited || false,
+            is_sold_out: hotel.is_sold_out || false,
             has_deal: hotel.has_deal || false,
             deal_label: hotel.deal_label || null,
-            available_rooms: hotel.rooms_left || 10,
+            available_rooms: hotel.rooms_left != null ? hotel.rooms_left : null,
             image: hotel.image_url || hotel.image || `https://via.placeholder.com/400x300?text=${encodeURIComponent(hotel.name?.slice(0, 20) || 'Hotel')}`,
             review_count: reviewNum,
             rating_label: hotel.rating_label || null,

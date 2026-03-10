@@ -62,6 +62,7 @@ const HotelResults = () => {
   const [hotels, setHotels] = useState([]);
   const [filteredHotels, setFilteredHotels] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   
   // Sorting and filtering
@@ -128,23 +129,37 @@ const HotelResults = () => {
 
   const handleSearch = async (params = searchParams) => {
     setLoading(true);
+    setRefreshing(false);
     setError('');
 
     try {
-      const results = await searchLahoreHotels({
+      const response = await searchLahoreHotels({
         checkIn: params.checkIn,
         checkOut: params.checkOut,
         adults: params.adults,
         children: params.children,
-        roomType: params.roomType
+        roomType: params.roomType,
+        onRefresh: (freshData) => {
+          // Background scrape completed — swap in fresh real-time data
+          const freshHotels = freshData.hotels || [];
+          if (freshHotels.length > 0) {
+            setHotels(freshHotels);
+            setRefreshing(false);
+          }
+        }
       });
 
-      setHotels(results);
-      setFilteredHotels(results);
+      const hotelsList = response?.hotels || response || [];
+      setHotels(hotelsList);
+      setFilteredHotels(hotelsList);
+
+      if (response?.cached && !response?.is_real_time) {
+        setRefreshing(true);
+      }
       
       // Calculate price range
-      if (results.length > 0) {
-        const prices = results.map(h => h.double_bed_price_per_day || h.price || 0);
+      if (hotelsList.length > 0) {
+        const prices = hotelsList.map(h => h.double_bed_price_per_day || h.price || 0);
         setPriceRange({
           min: Math.min(...prices),
           max: Math.max(...prices)

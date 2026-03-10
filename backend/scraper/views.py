@@ -96,6 +96,8 @@ def _normalize_hotels(hotels, search_params):
                 'cancellation_policy': h.get('cancellation_policy'),
                 'meal_plan': h.get('meal_plan'),
                 'availability': h.get('availability_status', 'Available'),
+                'is_available': not h.get('is_sold_out', False),
+                'rooms_left': h.get('rooms_left'),
                 'occupancy_match': max_occ >= adults,
             }]
 
@@ -117,6 +119,18 @@ def _normalize_hotels(hotels, search_params):
         h.setdefault('source', 'booking.com')
         h.setdefault('is_real_time', True)
         h.setdefault('currency', 'PKR')
+
+        # Ensure stars are passed through as-is from scraper (real-time)
+        if h.get('stars') is not None:
+            try:
+                h['stars'] = int(h['stars'])
+            except (ValueError, TypeError):
+                h['stars'] = None
+
+        # Ensure availability fields are present
+        h.setdefault('is_sold_out', False)
+        h.setdefault('is_limited', False)
+        h.setdefault('rooms_left', None)
 
     return hotels
 

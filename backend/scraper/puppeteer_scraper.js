@@ -437,13 +437,39 @@ async function extractCards(page, nights) {
     }
 
     function parseStars(card) {
+      // Strategy 1: data-testid rating-stars (most reliable)
       const el = qs(card, '[data-testid="rating-stars"]', '.bui-rating', '[aria-label*="stars"]', '[aria-label*="star"]');
-      if (!el) return null;
-      const ariaLabel = el.getAttribute('aria-label') || '';
-      const m = ariaLabel.match(/(\d)/);
-      if (m) return parseInt(m[1]);
-      const svgs = el.querySelectorAll('svg, span[aria-hidden]');
-      return svgs.length || null;
+      if (el) {
+        const ariaLabel = el.getAttribute('aria-label') || '';
+        const m = ariaLabel.match(/(\d)/);
+        if (m) return parseInt(m[1]);
+        // Count star SVGs/icons inside the element
+        const svgs = el.querySelectorAll('svg, span[aria-hidden], .fcd9eec8fb');
+        if (svgs.length > 0 && svgs.length <= 5) return svgs.length;
+      }
+
+      // Strategy 2: Look for star indicators in class-based selectors
+      const classEl = card.querySelector('[class*="fcd9eec8fb"]');
+      if (classEl) {
+        const parent = classEl.parentElement;
+        if (parent) {
+          const starIcons = parent.querySelectorAll('[class*="fcd9eec8fb"]');
+          if (starIcons.length > 0 && starIcons.length <= 5) return starIcons.length;
+        }
+      }
+
+      // Strategy 3: data-testid="property-card-header" area
+      const headerArea = card.querySelector('[data-testid="header-title"]') || card.querySelector('[data-testid="title"]');
+      if (headerArea) {
+        const parent = headerArea.parentElement;
+        if (parent) {
+          const allText = parent.getAttribute('aria-label') || parent.textContent || '';
+          const starMatch = allText.match(/(\d)\s*(?:star|\u2605)/i);
+          if (starMatch) return parseInt(starMatch[1]);
+        }
+      }
+
+      return null;
     }
 
     function classifyRoom(t) {
@@ -595,13 +621,39 @@ async function extractCards(page, nights) {
         const roomTypes = parseRoomTypes(card);
         const primaryRoom = roomTypes[0];
 
+        // ── Availability Extraction (real-time from Booking.com) ──
         const urgencyEl = qs(card, '[data-testid="urgency-message"]');
         const urgency = text(urgencyEl);
-        let rooms_left = null, is_limited = false;
+        let rooms_left = null, is_limited = false, is_sold_out = false;
         if (urgency) {
-          const m = urgency.match(/(\d+)/);
-          if (m) { rooms_left = parseInt(m[1]); is_limited = true; }
-          else { is_limited = true; }
+          const lower = urgency.toLowerCase();
+          if (lower.includes('sold out') || lower.includes('unavailable') || lower.includes('not available')) {
+            is_sold_out = true;
+            rooms_left = 0;
+            is_limited = true;
+          } else {
+            const m = urgency.match(/(\d+)/);
+            if (m) { rooms_left = parseInt(m[1]); is_limited = true; }
+            else { is_limited = true; }
+          }
+        }
+
+        // Additional availability signals from card text
+        const cardText = card.textContent || '';
+        const cardTextLower = cardText.toLowerCase();
+        if (!is_sold_out && (cardTextLower.includes('sold out') || cardTextLower.includes('no availability'))) {
+          is_sold_out = true;
+          rooms_left = 0;
+          is_limited = true;
+        }
+
+        // Check for "Only X left on our site" or "X left at this price" patterns
+        if (!is_limited && !is_sold_out) {
+          const leftMatch = cardText.match(/(\d+)\s+(?:left|remaining)/i);
+          if (leftMatch) {
+            rooms_left = parseInt(leftMatch[1]);
+            is_limited = true;
+          }
         }
 
         const dealEl = qs(card, '[data-testid="property-card-deal"]', '[data-testid="deal-badge"]');
@@ -683,18 +735,31 @@ async function extractCards(page, nights) {
         if (fullCardText.includes('restaurant')) amenities.push('Restaurant');
         const uniqueAmenities = [...new Set(amenities)];
 
-        // ── Build rooms array ──
-        const rooms = roomTypes.map((rt) => ({
-          room_type: rt.room_type,
-          room_type_key: rt.room_type_key,
-          max_occupancy: rt.max_occupancy,
-          price_per_night: price_per_night,
-          total_price: total_stay_price,
-          cancellation_policy: rt.cancellation_policy,
-          meal_plan: rt.meal_plan,
-          availability: is_limited ? `Only ${rooms_left || 'few'} rooms left!` : 'Available',
-          raw_text: rt.raw_text,
-        }));
+        // ── Build rooms array with real-time availability ──
+        const rooms = roomTypes.map((rt) => {
+          // Check per-room sold out signals from raw text
+          const rtText = (rt.raw_text || '').toLowerCase();
+          const roomSoldOut = is_sold_out || rtText.includes('sold out') || rtText.includes('not available');
+          const roomAvailability = roomSoldOut
+            ? 'Sold Out'
+            : is_limited
+              ? `Only ${rooms_left || 'few'} rooms left!`
+              : 'Available';
+
+          return {
+            room_type: rt.room_type,
+            room_type_key: rt.room_type_key,
+            max_occupancy: rt.max_occupancy,
+            price_per_night: price_per_night,
+            total_price: total_stay_price,
+            cancellation_policy: rt.cancellation_policy,
+            meal_plan: rt.meal_plan,
+            availability: roomAvailability,
+            is_available: !roomSoldOut,
+            rooms_left: is_limited ? (rooms_left || null) : null,
+            raw_text: rt.raw_text,
+          };
+        });
 
         results.push({
           name,
@@ -728,9 +793,14 @@ async function extractCards(page, nights) {
           deal_label,
           is_genius,
           sustainability_badge,
-          availability_status: is_limited ? `Only ${rooms_left || 'few'} rooms left!` : 'Available',
-          rooms_left,
+          availability_status: is_sold_out
+            ? 'Sold Out'
+            : is_limited
+              ? `Only ${rooms_left || 'few'} rooms left!`
+              : 'Available',
+          rooms_left: is_sold_out ? 0 : rooms_left,
           is_limited,
+          is_sold_out,
           amenities: uniqueAmenities,
           wifi_available: uniqueAmenities.some(a => a.toLowerCase().includes('wifi')),
           parking_available: uniqueAmenities.some(a => a.toLowerCase().includes('parking')),
