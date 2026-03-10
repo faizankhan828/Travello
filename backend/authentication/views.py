@@ -861,6 +861,8 @@ def chat(request):
             data['booking_flow'] = response['booking_flow']
         if response.get('has_hotels'):
             data['has_hotels'] = True
+        if response.get('hotels'):
+            data['hotels'] = response['hotels']
         if response.get('booking_id'):
             data['booking_id'] = response['booking_id']
         return Response(data)

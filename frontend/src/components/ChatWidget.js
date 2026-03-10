@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { chatAPI } from '../services/api';
 
 /* ── Typing indicator ──────────────────────────────────────────────────── */
@@ -8,6 +9,98 @@ function TypingDots() {
       <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.2s]" />
       <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.1s]" />
       <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
+    </div>
+  );
+}
+
+/* ── Hotel card for chat ───────────────────────────────────────────────── */
+function ChatHotelCard({ hotel, index, onBook }) {
+  const stars = hotel.stars ? '★'.repeat(hotel.stars) + '☆'.repeat(5 - hotel.stars) : null;
+  const price = hotel.price_per_night
+    ? `${hotel.currency || 'PKR'} ${Number(hotel.price_per_night).toLocaleString()}`
+    : null;
+  const ratingNum = hotel.rating ? parseFloat(hotel.rating) : null;
+  const ratingColor =
+    ratingNum >= 8 ? 'bg-green-600' : ratingNum >= 6 ? 'bg-yellow-500' : 'bg-gray-500';
+
+  return (
+    <div className="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden hover:shadow-md transition-shadow">
+      {/* Image or placeholder */}
+      {hotel.image_url ? (
+        <img
+          src={hotel.image_url}
+          alt={hotel.name}
+          className="w-full h-24 object-cover"
+          loading="lazy"
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+      ) : (
+        <div className="w-full h-16 bg-gradient-to-r from-primary-500 to-blue-500 flex items-center justify-center">
+          <span className="text-white text-lg font-bold">🏨</span>
+        </div>
+      )}
+
+      <div className="p-2.5">
+        {/* Name + stars */}
+        <div className="flex items-start justify-between gap-1">
+          <h4 className="text-xs font-semibold text-gray-900 dark:text-white leading-tight line-clamp-2">
+            {index}. {hotel.name}
+          </h4>
+          {ratingNum && (
+            <span className={`${ratingColor} text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0`}>
+              {ratingNum.toFixed(1)}
+            </span>
+          )}
+        </div>
+        {stars && <p className="text-yellow-500 text-[10px] mt-0.5">{stars}</p>}
+
+        {/* Price + room */}
+        <div className="mt-1.5 space-y-0.5">
+          {price && (
+            <p className="text-xs font-bold text-primary-600 dark:text-blue-400">{price}<span className="font-normal text-gray-500 dark:text-gray-400"> /night</span></p>
+          )}
+          {hotel.room_type && hotel.room_type !== 'Standard Room' && (
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{hotel.room_type}</p>
+          )}
+        </div>
+
+        {/* Availability */}
+        {hotel.is_sold_out ? (
+          <span className="inline-block mt-1 text-[10px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full font-medium">
+            Sold Out
+          </span>
+        ) : hotel.rooms_left && hotel.rooms_left <= 5 ? (
+          <span className="inline-block mt-1 text-[10px] bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 rounded-full font-medium">
+            Only {hotel.rooms_left} left!
+          </span>
+        ) : hotel.availability_status ? (
+          <span className="inline-block mt-1 text-[10px] bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded-full font-medium">
+            Available
+          </span>
+        ) : null}
+
+        {/* Actions */}
+        <div className="mt-2 flex gap-1.5">
+          {!hotel.is_sold_out && (
+            <button
+              onClick={() => onBook(index)}
+              className="flex-1 text-[10px] font-medium py-1 px-2 rounded bg-primary-600 hover:bg-primary-700 text-white transition-colors"
+            >
+              Book
+            </button>
+          )}
+          {hotel.url && (
+            <a
+              href={hotel.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 text-[10px] font-medium py-1 px-2 rounded border border-gray-300 dark:border-gray-500 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 text-center transition-colors"
+            >
+              Details
+            </a>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -124,6 +217,7 @@ export default function ChatWidget() {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
   const sessionId = useMemo(getSessionId, []);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (isOpen && messages.length === 0) {
@@ -174,6 +268,20 @@ export default function ChatWidget() {
           },
         ]);
 
+        // Show structured hotel cards if available
+        if (data.hotels && data.hotels.length > 0) {
+          setTimeout(() => {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `${Date.now()}-hotels`,
+                role: 'hotels',
+                hotels: data.hotels,
+              },
+            ]);
+          }, 200);
+        }
+
         // Show follow-up suggestions for hotel results
         if (data.has_hotels) {
           setTimeout(() => {
@@ -190,7 +298,7 @@ export default function ChatWidget() {
                 ],
               },
             ]);
-          }, 300);
+          }, 500);
         }
       } catch (err) {
         console.error('Chat error:', err);
@@ -296,6 +404,27 @@ export default function ChatWidget() {
                       {s.label}
                     </button>
                   ))}
+                </div>
+              );
+            }
+
+            /* ── Hotel cards grid ── */
+            if (m.role === 'hotels') {
+              return (
+                <div key={m.id} className="space-y-2">
+                  <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    Real-time Results
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {m.hotels.map((hotel, i) => (
+                      <ChatHotelCard
+                        key={`${hotel.name}-${i}`}
+                        hotel={hotel}
+                        index={i + 1}
+                        onBook={(idx) => sendMessage(`Book option ${idx}`)}
+                      />
+                    ))}
+                  </div>
                 </div>
               );
             }

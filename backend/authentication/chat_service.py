@@ -255,7 +255,7 @@ def _build_hotels_db_context() -> str:
 
 def _fetch_live_hotels(city: str, checkin: str = None, checkout: str = None,
                        adults: int = 2) -> list:
-    """Fetch live hotel data from scraper cache / DB."""
+    """Fetch live hotel data — check cache first, then run a real-time scrape."""
     try:
         from django.core.cache import cache
         cache_key = f"realtime_v7_{city}_{checkin}_{checkout}_{adults}"
@@ -263,6 +263,7 @@ def _fetch_live_hotels(city: str, checkin: str = None, checkout: str = None,
         if cached:
             hotels = cached.get('hotels', []) if isinstance(cached, dict) else cached
             if hotels:
+                logger.info(f"Chat: returning {len(hotels)} cached hotels for {city}")
                 return hotels[:10]
 
         from scraper.models import ScrapeJob
@@ -276,8 +277,56 @@ def _fetch_live_hotels(city: str, checkin: str = None, checkout: str = None,
             hotels = recent.results.get('hotels', [])
             if hotels:
                 return hotels[:10]
+
+        # ── No cache / DB hit — run a real-time scrape ──────────────────
+        hotels = _run_realtime_scrape(city, checkin, checkout, adults)
+        if hotels:
+            return hotels[:10]
+
     except Exception as e:
         logger.warning(f"Could not fetch live hotels: {e}")
+    return []
+
+
+def _run_realtime_scrape(city, checkin, checkout, adults):
+    """Execute the Puppeteer scraper synchronously for the chatbot."""
+    try:
+        from datetime import date, timedelta
+        today = date.today()
+        if not checkin:
+            checkin = (today + timedelta(days=1)).isoformat()
+        if not checkout:
+            checkout = (today + timedelta(days=2)).isoformat()
+
+        from scraper.views import _run_puppeteer, _normalize_hotels, _cache_key
+        from scraper.booking_scraper import PAKISTAN_DESTINATIONS
+
+        search_params = {
+            'city': city,
+            'checkin': checkin,
+            'checkout': checkout,
+            'adults': int(adults or 2),
+            'rooms': 1,
+            'children': 0,
+            'order': 'popularity',
+            'max_seconds': 60,
+            'max_results': 30,
+        }
+        city_lower = city.lower()
+        if city_lower in PAKISTAN_DESTINATIONS:
+            search_params['dest_id'] = PAKISTAN_DESTINATIONS[city_lower]['dest_id']
+
+        logger.info(f"Chat: running real-time scrape for {city}")
+        hotels, meta = _run_puppeteer(search_params)
+        if hotels:
+            _normalize_hotels(hotels, search_params)
+            from django.core.cache import cache as django_cache
+            ck = _cache_key(search_params)
+            django_cache.set(ck, {'hotels': hotels, 'meta': meta}, 15 * 60)
+            logger.info(f"Chat: scraped {len(hotels)} hotels for {city}")
+            return hotels
+    except Exception as e:
+        logger.warning(f"Chat real-time scrape failed: {e}")
     return []
 
 
@@ -290,8 +339,40 @@ def _format_scraped_hotels_for_context(hotels: list, city: str) -> str:
         price = h.get('price_per_night') or h.get('total_stay_price', 'N/A')
         rating = h.get('review_score') or h.get('rating', 'N/A')
         room = h.get('room_type', 'Standard Room')
-        lines.append(f"{i}. **{name}** — Room: {room}, PKR {price}/night, ★{rating}")
+        stars = h.get('stars', '')
+        avail = h.get('availability_status', '')
+        rooms_left = h.get('rooms_left')
+        avail_note = f" — {avail}" if avail else ""
+        if rooms_left:
+            avail_note += f" (only {rooms_left} left)"
+        lines.append(
+            f"{i}. **{name}** {'★' * int(stars) if stars else ''}"
+            f" — Room: {room}, PKR {price}/night, Rating: {rating}/10{avail_note}"
+        )
     return "\n".join(lines)
+
+
+def _build_hotels_for_response(hotels: list, city: str) -> list:
+    """Build a structured list of hotel dicts for the frontend to render cards."""
+    result = []
+    for h in hotels[:8]:
+        name = h.get('hotel_name') or h.get('name', 'Hotel')
+        result.append({
+            'name': name,
+            'city': city or '',
+            'url': h.get('url') or h.get('booking_url') or '',
+            'image_url': h.get('image_url') or '',
+            'rating': h.get('review_score') or h.get('review_rating') or h.get('rating'),
+            'stars': h.get('stars'),
+            'price_per_night': h.get('price_per_night') or h.get('total_stay_price'),
+            'currency': h.get('currency', 'PKR'),
+            'room_type': h.get('room_type', 'Standard Room'),
+            'availability_status': h.get('availability_status', ''),
+            'rooms_left': h.get('rooms_left'),
+            'is_sold_out': h.get('is_sold_out', False),
+            'distance_from_center': h.get('distance_from_center') or h.get('distance', ''),
+        })
+    return result
 
 
 # ── Prompt builders ─────────────────────────────────────────────────────────
@@ -678,7 +759,14 @@ def get_ai_response(message: str, session_id: str = 'default', user=None) -> dic
             reply = _call_gemini(system_instruction, contents, temperature=0.5, max_tokens=1500)
             _store_offered_hotels(conv, city, live_hotels)
             _add_to_history(conv, 'bot', reply)
-            return _success(reply, detected_emotion, emotion_confidence, has_hotels=True)
+
+            # Build structured hotel data for frontend cards
+            structured_hotels = _build_hotels_for_response(live_hotels, city) if live_hotels else []
+            return _success(
+                reply, detected_emotion, emotion_confidence,
+                has_hotels=True,
+                hotels=structured_hotels,
+            )
 
         # ── Destination query ──
         if request_type == 'destination_query':
