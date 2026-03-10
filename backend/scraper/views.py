@@ -32,11 +32,11 @@ from .models import HotelScrapeRun, ScrapedHotelResult, ScrapeJob
 logger = logging.getLogger(__name__)
 
 # ── Config (from settings, with safe defaults) ─────────────────────────────
-SCRAPER_MAX_RESULTS = getattr(django_settings, 'SCRAPER_MAX_RESULTS', 600)
+SCRAPER_MAX_RESULTS = getattr(django_settings, 'SCRAPER_MAX_RESULTS', 300)
 SCRAPER_CACHE_TTL = getattr(django_settings, 'SCRAPER_CACHE_TTL_MINS', 15) * 60  # seconds
 SCRAPER_CONCURRENCY = getattr(django_settings, 'SCRAPER_CONCURRENCY_LIMIT', 4)
-SCRAPER_MAX_SECONDS = getattr(django_settings, 'SCRAPER_MAX_SECONDS', 140)
-SCRAPER_HARD_TIMEOUT = getattr(django_settings, 'SCRAPER_HARD_TIMEOUT', 200)
+SCRAPER_MAX_SECONDS = getattr(django_settings, 'SCRAPER_MAX_SECONDS', 50)
+SCRAPER_HARD_TIMEOUT = getattr(django_settings, 'SCRAPER_HARD_TIMEOUT', 70)
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -261,15 +261,6 @@ def _scrape_worker(job_id, search_params, checkin_date, checkout_date):
 
         hotels, meta = _run_puppeteer(search_params)
         logger.info(f"[Job {job_id}] Puppeteer done — {len(hotels)} hotels")
-
-        # Retry once if 0 hotels (Booking.com may have temporarily blocked)
-        if not hotels:
-            logger.warning(f"[Job {job_id}] 0 hotels on first try, retrying...")
-            ScrapeJob.objects.filter(pk=job_id).update(progress_pct=40)
-            import time
-            time.sleep(3)
-            hotels, meta = _run_puppeteer(search_params)
-            logger.info(f"[Job {job_id}] Retry got {len(hotels)} hotels")
 
         ScrapeJob.objects.filter(pk=job_id).update(progress_pct=70)
 

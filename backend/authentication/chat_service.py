@@ -328,7 +328,7 @@ def _run_realtime_scrape(city, checkin, checkout, adults):
             'rooms': 1,
             'children': 0,
             'order': 'popularity',
-            'max_seconds': 60,
+            'max_seconds': 40,
             'max_results': 30,
         }
         city_lower = city.lower()

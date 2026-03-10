@@ -7,7 +7,7 @@
  *   3. Aggressive resource blocking (images, fonts, analytics)
  *   4. 4 sort orders × star/review filters = 25+ search passes
  *   5. Strict URL-based deduplication
- *   6. Targets 200-500+ unique hotels in 60-120 seconds
+ *   6. Targets 100-300+ unique hotels in 25-45 seconds
  *
  * Booking.com blocks pagination for headless browsers but returns
  * different results for different sort/filter combos. We exploit
@@ -23,16 +23,17 @@ puppeteer.use(StealthPlugin());
 // ── Configuration ──────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 25;
-const MAX_CONSECUTIVE_EMPTY = 3;      // Stop after 3 consecutive 0-new-hotel searches
-const MAX_RETRY_PER_PAGE = 2;
-const PRICE_WAIT_MS = 800;            // Quick price XHR wait (most load fast)
-const NAV_TIMEOUT = 20000;            // 20s navigation timeout
-const DEFAULT_MAX_SECONDS = 120;      // Total budget
+const MAX_CONSECUTIVE_EMPTY = 2;      // Stop after 2 consecutive 0-new-hotel searches
+const MAX_RETRY_PER_PAGE = 1;
+const PRICE_WAIT_MS = 400;            // Quick price XHR wait (most load fast)
+const NAV_TIMEOUT = 12000;            // 12s navigation timeout
+const DEFAULT_MAX_SECONDS = 45;       // Total budget (aggressive)
 const SORT_ORDERS = ['price', 'popularity', 'distance', 'review_score'];
 
 // ── Search Combinations: sort × filter (ordered by expected yield) ──
 // Booking.com blocks pagination for bots but serves different first-page
 // results for different sort/filter combos. Each combo yields ~20-25 hotels.
+// Trimmed to ~18 high-yield combos for fast results (~30-45s)
 const SEARCH_COMBOS = [
   // Tier 1: Base sorts (no filter) — highest unique yield
   { sort: 'price',        nflt: '' },
@@ -45,78 +46,24 @@ const SEARCH_COMBOS = [
   { sort: 'price', nflt: 'class%3D4' },
   { sort: 'price', nflt: 'class%3D3' },
   { sort: 'price', nflt: 'class%3D2' },
-  { sort: 'price', nflt: 'class%3D1' },
 
   // Tier 3: Star rating filters × popularity sort
   { sort: 'popularity', nflt: 'class%3D5' },
   { sort: 'popularity', nflt: 'class%3D4' },
   { sort: 'popularity', nflt: 'class%3D3' },
-  { sort: 'popularity', nflt: 'class%3D2' },
 
   // Tier 4: Review score filters × price sort
-  { sort: 'price', nflt: 'review_score%3D90' },
   { sort: 'price', nflt: 'review_score%3D80' },
   { sort: 'price', nflt: 'review_score%3D70' },
-  { sort: 'price', nflt: 'review_score%3D60' },
 
-  // Tier 5: Review score filters × popularity sort
-  { sort: 'popularity', nflt: 'review_score%3D90' },
-  { sort: 'popularity', nflt: 'review_score%3D80' },
-
-  // Tier 6: Star rating × distance/review sorts (lower priority)
-  { sort: 'distance',     nflt: 'class%3D5' },
-  { sort: 'distance',     nflt: 'class%3D4' },
-  { sort: 'distance',     nflt: 'class%3D3' },
-  { sort: 'review_score', nflt: 'class%3D5' },
-  { sort: 'review_score', nflt: 'class%3D4' },
-  { sort: 'review_score', nflt: 'class%3D3' },
-
-  // Tier 7: Cross-filter combos for extra coverage
-  { sort: 'distance',     nflt: 'review_score%3D80' },
-  { sort: 'review_score', nflt: 'review_score%3D70' },
-  { sort: 'popularity',   nflt: 'class%3D1' },
-  { sort: 'distance',     nflt: 'class%3D2' },
-  { sort: 'price',        nflt: 'review_score%3D50' },
-  { sort: 'popularity',   nflt: 'review_score%3D60' },
-  { sort: 'distance',     nflt: 'class%3D1' },
-  { sort: 'review_score', nflt: 'class%3D2' },
-  { sort: 'review_score', nflt: 'class%3D1' },
-  { sort: 'distance',     nflt: 'review_score%3D60' },
-
-  // Tier 8: Property type filters (hotels, apartments, guest houses, hostels)
+  // Tier 5: Property type filters (most impactful)
   { sort: 'price',        nflt: 'ht_id%3D204' },    // Hotel
   { sort: 'price',        nflt: 'ht_id%3D201' },    // Apartment
   { sort: 'price',        nflt: 'ht_id%3D216' },    // Guest house
-  { sort: 'price',        nflt: 'ht_id%3D203' },    // Hostel
-  { sort: 'popularity',   nflt: 'ht_id%3D204' },    // Hotel
-  { sort: 'popularity',   nflt: 'ht_id%3D201' },    // Apartment
-  { sort: 'popularity',   nflt: 'ht_id%3D216' },    // Guest house
-  { sort: 'distance',     nflt: 'ht_id%3D204' },    // Hotel
-  { sort: 'distance',     nflt: 'ht_id%3D201' },    // Apartment
-  { sort: 'review_score', nflt: 'ht_id%3D204' },    // Hotel
 
-  // Tier 9: Combined star + review filters for deep mining
-  { sort: 'price',        nflt: 'class%3D3%3Breview_score%3D80' },
-  { sort: 'price',        nflt: 'class%3D4%3Breview_score%3D80' },
-  { sort: 'popularity',   nflt: 'class%3D3%3Breview_score%3D70' },
-  { sort: 'popularity',   nflt: 'class%3D5%3Breview_score%3D80' },
-  { sort: 'distance',     nflt: 'class%3D3%3Breview_score%3D70' },
-  { sort: 'distance',     nflt: 'class%3D5%3Breview_score%3D90' },
-
-  // Tier 10: Additional property types + sort combos
-  { sort: 'distance',     nflt: 'ht_id%3D216' },    // Guest house × distance
-  { sort: 'review_score', nflt: 'ht_id%3D201' },    // Apartment × review
-  { sort: 'review_score', nflt: 'ht_id%3D216' },    // Guest house × review
-  { sort: 'distance',     nflt: 'ht_id%3D203' },    // Hostel × distance
-  { sort: 'price',        nflt: 'ht_id%3D219' },    // B&B × price
-  { sort: 'price',        nflt: 'ht_id%3D208' },    // Lodge × price
-  { sort: 'popularity',   nflt: 'ht_id%3D203' },    // Hostel × popularity
-
-  // Tier 11: class_asc and class sort variants
-  { sort: 'class',        nflt: '' },                // Star rating desc
-  { sort: 'class_asc',    nflt: '' },                // Star rating asc
-  { sort: 'class',        nflt: 'review_score%3D80' },
-  { sort: 'class_asc',    nflt: 'review_score%3D70' },
+  // Tier 6: Cross-filter for extra coverage
+  { sort: 'distance',     nflt: 'class%3D5' },
+  { sort: 'review_score', nflt: 'class%3D4' },
 ];
 
 const BROWSER_ARGS = [
@@ -887,9 +834,9 @@ async function main(searchParams) {
 
   // Select how many combos based on time budget
   let maxCombos;
-  if (maxSeconds >= 90)      maxCombos = SEARCH_COMBOS.length;  // All combos
-  else if (maxSeconds >= 60) maxCombos = 20;                     // Top 20
-  else                       maxCombos = 8;                      // Minimal
+  if (maxSeconds >= 60)      maxCombos = SEARCH_COMBOS.length;  // All combos
+  else if (maxSeconds >= 30) maxCombos = 12;                     // Top 12
+  else                       maxCombos = 6;                      // Minimal
 
   const combos = SEARCH_COMBOS.slice(0, maxCombos);
 
@@ -915,8 +862,8 @@ async function main(searchParams) {
     // Cookie warm-up on first page
     const pageA = await setupPage(browser);
     try {
-      await pageA.goto('https://www.booking.com/', { waitUntil: 'domcontentloaded', timeout: 15000 });
-      await sleep(2000);
+      await pageA.goto('https://www.booking.com/', { waitUntil: 'domcontentloaded', timeout: 10000 });
+      await sleep(800);
       await dismissOverlays(pageA);
       log(`Cookie warm-up complete — URL: ${pageA.url().slice(0, 60)}`);
     } catch (e) {
@@ -970,13 +917,19 @@ async function main(searchParams) {
         break;
       }
 
+      // Early exit: 100+ unique hotels is plenty for search results
+      if (allHotels.length >= 100 && i >= 6) {
+        log(`\n${allHotels.length} hotels collected after ${i + promises.length} combos — sufficient, stopping early`);
+        break;
+      }
+
       i += promises.length;
 
       // Brief stagger every 10 combos
       if (i < combos.length && i % 10 < 2) {
-        await randomDelay(800, 1500);
+        await randomDelay(300, 600);
       } else if (i < combos.length) {
-        await randomDelay(100, 300);
+        await randomDelay(50, 150);
       }
     }
 

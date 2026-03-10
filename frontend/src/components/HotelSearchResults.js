@@ -102,7 +102,7 @@ const LoadingScreen = ({ searchParams }) => {
   useEffect(() => {
     const stageInterval = setInterval(() => {
       setLoadingStage(prev => (prev < loadingMessages.length - 1 ? prev + 1 : prev));
-    }, 15000); // 15s per stage = ~90s total to cycle through
+    }, 6000); // 6s per stage = ~36s total to cycle through
 
     const dotsInterval = setInterval(() => {
       setDotsCount(prev => (prev < 3 ? prev + 1 : 1));
@@ -1081,8 +1081,8 @@ const HotelSearchResults = () => {
       // If backend returned a job_id but no cached hotels, poll for results
       if (data.success && data.job_id && (!data.hotels || data.hotels.length === 0)) {
         console.log(`No cache. Polling job ${data.job_id}...`);
-        const POLL_INTERVAL = 3000;
-        const MAX_POLLS = 50; // ~150s of polling (scraper takes 60-90s)
+        const POLL_INTERVAL = 2000;
+        const MAX_POLLS = 35; // ~70s of polling
         let pollHotels = [];
         let pollMeta = {};
         let jobFailed = false;
