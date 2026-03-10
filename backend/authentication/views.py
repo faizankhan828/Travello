@@ -863,6 +863,8 @@ def chat(request):
             data['has_hotels'] = True
         if response.get('hotels'):
             data['hotels'] = response['hotels']
+        if response.get('search_params'):
+            data['search_params'] = response['search_params']
         if response.get('booking_id'):
             data['booking_id'] = response['booking_id']
         return Response(data)

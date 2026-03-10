@@ -253,51 +253,70 @@ def _build_hotels_db_context() -> str:
 
 # ── Scraper integration ─────────────────────────────────────────────────────
 
+def _extract_dates_from_message(message: str):
+    """Extract check-in / check-out dates from user message."""
+    dates = re.findall(r'(\d{4}-\d{2}-\d{2})', message)
+    checkin = dates[0] if len(dates) >= 1 else None
+    checkout = dates[1] if len(dates) >= 2 else None
+    return checkin, checkout
+
+
+def _extract_adults_from_message(message: str) -> int:
+    """Extract guest/adult count from user message."""
+    m = re.search(r'(\d+)\s*(?:guest|adult|person|people)', message.lower())
+    return int(m.group(1)) if m else 2
+
+
 def _fetch_live_hotels(city: str, checkin: str = None, checkout: str = None,
-                       adults: int = 2) -> list:
-    """Fetch live hotel data — check cache first, then run a real-time scrape."""
+                       adults: int = 2) -> tuple:
+    """Always fetch live hotel data via scraper.  Returns (hotels, resolved_params)."""
+    from datetime import date, timedelta as td
+    today = date.today()
+    resolved_checkin = checkin or (today + td(days=1)).isoformat()
+    resolved_checkout = checkout or (today + td(days=2)).isoformat()
+    resolved_adults = int(adults or 2)
+
     try:
+        # Check short-term cache (≤15 min) using resolved dates
         from django.core.cache import cache
-        cache_key = f"realtime_v7_{city}_{checkin}_{checkout}_{adults}"
+        cache_key = f"realtime_v7_{city}_{resolved_checkin}_{resolved_checkout}_{resolved_adults}"
         cached = cache.get(cache_key)
         if cached:
             hotels = cached.get('hotels', []) if isinstance(cached, dict) else cached
             if hotels:
-                logger.info(f"Chat: returning {len(hotels)} cached hotels for {city}")
-                return hotels[:10]
+                logger.info(f"Chat: {len(hotels)} fresh cached hotels for {city}")
+                return hotels[:10], (resolved_checkin, resolved_checkout, resolved_adults)
 
+        # ── Run a real-time scrape ──────────────────────────────────────
+        hotels = _run_realtime_scrape(city, resolved_checkin, resolved_checkout, resolved_adults)
+        if hotels:
+            return hotels[:10], (resolved_checkin, resolved_checkout, resolved_adults)
+
+        # Last resort: recent completed scrape job (< 30 min old)
         from scraper.models import ScrapeJob
+        from django.utils import timezone as tz
+        cutoff = tz.now() - td(minutes=30)
         recent = ScrapeJob.objects.filter(
             city__iexact=city,
             status=ScrapeJob.Status.COMPLETED,
             hotel_count__gt=0,
+            updated_at__gte=cutoff,
         ).order_by('-updated_at').first()
 
         if recent and recent.results:
             hotels = recent.results.get('hotels', [])
             if hotels:
-                return hotels[:10]
-
-        # ── No cache / DB hit — run a real-time scrape ──────────────────
-        hotels = _run_realtime_scrape(city, checkin, checkout, adults)
-        if hotels:
-            return hotels[:10]
-
+                logger.info(f"Chat: using recent ScrapeJob ({recent.pk}) for {city}")
+                return hotels[:10], (resolved_checkin, resolved_checkout, resolved_adults)
     except Exception as e:
         logger.warning(f"Could not fetch live hotels: {e}")
-    return []
+    return [], (resolved_checkin, resolved_checkout, resolved_adults)
 
 
 def _run_realtime_scrape(city, checkin, checkout, adults):
-    """Execute the Puppeteer scraper synchronously for the chatbot."""
+    """Execute the Puppeteer scraper synchronously for the chatbot.
+    Expects already-resolved dates (non-None)."""
     try:
-        from datetime import date, timedelta
-        today = date.today()
-        if not checkin:
-            checkin = (today + timedelta(days=1)).isoformat()
-        if not checkout:
-            checkout = (today + timedelta(days=2)).isoformat()
-
         from scraper.views import _run_puppeteer, _normalize_hotels, _cache_key
         from scraper.booking_scraper import PAKISTAN_DESTINATIONS
 
@@ -370,7 +389,10 @@ def _build_hotels_for_response(hotels: list, city: str) -> list:
             'availability_status': h.get('availability_status', ''),
             'rooms_left': h.get('rooms_left'),
             'is_sold_out': h.get('is_sold_out', False),
+            'is_limited': h.get('is_limited', False),
             'distance_from_center': h.get('distance_from_center') or h.get('distance', ''),
+            'location': h.get('location') or h.get('location_area') or '',
+            'amenities': (h.get('amenities') or [])[:4],
         })
     return result
 
@@ -488,18 +510,13 @@ def _build_hotel_search_prompt(message: str, conversation: dict) -> tuple:
     system_text = f"""You are the Travello hotel search assistant.
 
 YOUR TASK:
-1. If the user specified a destination, show hotel options from the data below.
-2. If details are missing (dates, guests, room type), ask conversationally.
-3. Present hotels in a clear numbered list:
-   **1. Hotel Name**
-   - Room: Room Type
-   - Price: PKR X,XXX per night
-   - Rating: X.X/5
-   - Amenities: WiFi, Pool, etc.
-4. After showing options, say: "Would you like to book any of these? Just say **Book option 1** (or whichever number)."
-5. If no city mentioned, ask which destination they want.
+1. If the user specified a destination, present a brief summary of the real-time hotel options found.
+2. IMPORTANT: The user will see detailed hotel cards with images, prices, ratings, and booking buttons displayed separately below your message. Do NOT repeat every detail — just give a friendly overview like "I found X great options in [city]" and highlight 2-3 standout picks.
+3. If no city mentioned, ask which destination they want.
+4. If details are missing (dates, guests), ask conversationally.
+5. After your overview, say: "You can tap **Book** on any hotel card, or say **Book option 1** to start booking."
 6. Consider budget if mentioned.
-7. Show at least 3 options covering different price points when possible.
+7. Keep your response concise — the hotel cards do the heavy lifting.
 {city_context}
 {db_context}"""
 
@@ -750,7 +767,17 @@ def get_ai_response(message: str, session_id: str = 'default', user=None) -> dic
             _add_to_history(conv, 'user', message)
             city = _extract_city_from_message(message)
 
-            live_hotels = _fetch_live_hotels(city) if city else []
+            # Extract dates & guests from user message for the scraper
+            msg_checkin, msg_checkout = _extract_dates_from_message(message)
+            msg_adults = _extract_adults_from_message(message)
+
+            if city:
+                live_hotels, (r_checkin, r_checkout, r_adults) = _fetch_live_hotels(
+                    city, checkin=msg_checkin, checkout=msg_checkout, adults=msg_adults,
+                )
+            else:
+                live_hotels, r_checkin, r_checkout, r_adults = [], msg_checkin, msg_checkout, msg_adults
+
             live_context = _format_scraped_hotels_for_context(live_hotels, city or 'Pakistan')
             system_instruction, contents = _build_hotel_search_prompt(message, conv)
             if live_context:
@@ -762,10 +789,20 @@ def get_ai_response(message: str, session_id: str = 'default', user=None) -> dic
 
             # Build structured hotel data for frontend cards
             structured_hotels = _build_hotels_for_response(live_hotels, city) if live_hotels else []
+
+            # Include search params (with resolved dates) so frontend can navigate to search page
+            search_params = {
+                'destination': city or '',
+                'checkIn': r_checkin or '',
+                'checkOut': r_checkout or '',
+                'adults': r_adults,
+            }
+
             return _success(
                 reply, detected_emotion, emotion_confidence,
                 has_hotels=True,
                 hotels=structured_hotels,
+                search_params=search_params,
             )
 
         # ── Destination query ──
@@ -850,10 +887,20 @@ def _get_fallback_response(message: str, request_type: str):
             "Let me know if there's anything else you'd like to explore on Travello!"
         )
 
-    # Hotel/destination queries — provide knowledge-based response
+    # Hotel/destination queries — try live scrape even in fallback
     if request_type in ('hotel_search', 'destination_query'):
         city = _extract_city_from_message(message)
         if city:
+            live_hotels, _ = _fetch_live_hotels(city)
+            if live_hotels:
+                lines = [f"Here are real-time hotel options in **{city}**:\n"]
+                for i, h in enumerate(live_hotels[:5], 1):
+                    name = h.get('hotel_name') or h.get('name', 'Hotel')
+                    price = h.get('price_per_night') or h.get('total_stay_price', 'N/A')
+                    rating = h.get('review_score') or h.get('rating', 'N/A')
+                    lines.append(f"{i}. **{name}** — PKR {price}/night, Rating: {rating}")
+                lines.append("\nSay **Book option 1** (or any number) to start booking!")
+                return "\n".join(lines)
             snippet = _build_city_knowledge_snippet(city)
             if snippet:
                 return (

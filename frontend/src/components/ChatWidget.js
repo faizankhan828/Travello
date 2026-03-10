@@ -53,6 +53,9 @@ function ChatHotelCard({ hotel, index, onBook }) {
           )}
         </div>
         {stars && <p className="text-yellow-500 text-[10px] mt-0.5">{stars}</p>}
+        {hotel.distance_from_center && (
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate mt-0.5">{hotel.distance_from_center}</p>
+        )}
 
         {/* Price + room */}
         <div className="mt-1.5 space-y-0.5">
@@ -277,6 +280,7 @@ export default function ChatWidget() {
                 id: `${Date.now()}-hotels`,
                 role: 'hotels',
                 hotels: data.hotels,
+                searchParams: data.search_params || null,
               },
             ]);
           }, 200);
@@ -425,6 +429,16 @@ export default function ChatWidget() {
                       />
                     ))}
                   </div>
+                  {m.searchParams?.destination && (
+                    <button
+                      onClick={() => {
+                        navigate('/hotels/search-results', { state: m.searchParams });
+                      }}
+                      className="w-full text-xs font-medium py-1.5 rounded-lg border border-primary-300 dark:border-blue-600 text-primary-600 dark:text-blue-400 hover:bg-primary-50 dark:hover:bg-blue-900/30 transition-colors mt-1"
+                    >
+                      View All Results on Search Page →
+                    </button>
+                  )}
                 </div>
               );
             }

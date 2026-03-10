@@ -196,7 +196,7 @@ export const chatAPI = {
     return axios.post(
       `${API_BASE_URL}/auth/chat/`,
       { message, session_id: sessionId },
-      { headers, timeout: 30000 },
+      { headers, timeout: 120000 },
     ).catch(error => {
       console.error('Chat error:', error);
       throw {
