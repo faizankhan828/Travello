@@ -378,8 +378,9 @@ export default function ItineraryPlanner() {
   const [emailSent, setEmailSent]       = useState(false);
 
   const handleEmailItinerary = async () => {
-    if (!itinerary) return;
+    if (!itinerary?.id) return;
     setEmailSending(true);
+    setEmailSent(false);
     try {
       // Build a plain-text summary for email
       const daysSummary = (itinerary.days || []).map((d, i) =>
@@ -387,16 +388,18 @@ export default function ItineraryPlanner() {
         (d.items || []).map(it => `  • [${it.slot || 'Visit'}] ${it.name} (${it.category || ''})`).join('\n')
       ).join('\n\n');
 
-      await paymentAPI.sendConfirmation(null, {
-        type: 'itinerary',
+      const res = await itineraryAPI.email(itinerary.id, {
         subject: `Your ${itinerary.city} Itinerary`,
         body: `🗺️ ${itinerary.city} Itinerary\n${itinerary.start_date} → ${itinerary.end_date}\nPace: ${itinerary.pace} | Budget: ${itinerary.budget_level}\n\n${daysSummary}\n\n${notes ? `Notes: ${notes}` : ''}`,
       });
-      setEmailSent(true);
+      if (res?.data?.email_sent) {
+        setEmailSent(true);
+      } else {
+        setError(res?.data?.error || 'Email was not sent. Please try again.');
+      }
       setTimeout(() => setEmailSent(false), 3000);
-    } catch {
-      // Silently fail — email is a nice-to-have
-      setEmailSent(true);
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Failed to send itinerary email.');
       setTimeout(() => setEmailSent(false), 3000);
     } finally { setEmailSending(false); }
   };

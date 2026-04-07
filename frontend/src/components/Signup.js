@@ -189,12 +189,17 @@ const Signup = () => {
       const response = await authAPI.googleLogin({
         credential: credentialResponse.credential,
       });
-      // Google auth returns tokens directly
-      localStorage.setItem('access_token', response.data.tokens.access);
-      localStorage.setItem('refresh_token', response.data.tokens.refresh);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      localStorage.setItem('isAdmin', 'false');
-      navigate('/dashboard');
+      const email = response?.data?.email;
+      if (!email) {
+        throw new Error('Google signup succeeded but no email was returned.');
+      }
+
+      navigate('/verify-login-otp', {
+        state: {
+          email,
+          isGoogleLogin: true,
+        },
+      });
     } catch (err) {
       setError(err.message || 'Google signup failed. Please try again.');
     } finally {

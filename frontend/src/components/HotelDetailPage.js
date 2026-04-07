@@ -377,6 +377,9 @@ const HotelDetailPage = () => {
                     <p>Available for dates: <span className={`font-semibold ${availableRoomsForSelected > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                       {availableRoomsForSelected}
                     </span></p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Availability includes pending and confirmed bookings.
+                    </p>
                     {overRequested && (
                       <p className="mt-2 text-red-600 dark:text-red-400">Not enough rooms for these dates.</p>
                     )}

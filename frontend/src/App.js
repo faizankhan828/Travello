@@ -25,6 +25,7 @@ const HotelResults = lazy(() => import('./components/HotelResults'));
 const HotelSearchResults = lazy(() => import('./components/HotelSearchResults'));
 const HotelBooking = lazy(() => import('./components/HotelBooking'));
 const HotelDetailsPage = lazy(() => import('./components/HotelDetailsPage'));
+const HotelDetailPage = lazy(() => import('./components/HotelDetailPage'));
 const Payment = lazy(() => import('./components/Payment'));
 const PaymentPage = lazy(() => import('./components/PaymentPage'));
 const PaymentSuccess = lazy(() => import('./components/PaymentSuccess'));
@@ -141,6 +142,7 @@ function App() {
                   {/* ── User protected routes ── */}
                   <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/hotel-booking" element={<ProtectedRoute><HotelBooking /></ProtectedRoute>} />
+                  <Route path="/hotels/:id" element={<ProtectedRoute><HotelDetailPage /></ProtectedRoute>} />
                   <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
                   <Route path="/payment/:bookingId" element={<ProtectedRoute><PaymentPage /></ProtectedRoute>} />
                   <Route path="/my-bookings" element={<ProtectedRoute><MyBookings /></ProtectedRoute>} />

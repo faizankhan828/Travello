@@ -153,12 +153,17 @@ const Login = () => {
       const response = await authAPI.googleLogin({
         credential: credentialResponse.credential,
       });
-      // Google auth returns tokens directly (no OTP needed)
-      localStorage.setItem('access_token', response.data.tokens.access);
-      localStorage.setItem('refresh_token', response.data.tokens.refresh);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      localStorage.setItem('isAdmin', 'false');
-      navigate('/dashboard');
+      const email = response?.data?.email;
+      if (!email) {
+        throw new Error('Google login succeeded but no email was returned.');
+      }
+
+      navigate('/verify-login-otp', {
+        state: {
+          email,
+          isGoogleLogin: true,
+        },
+      });
     } catch (err) {
       setError(err.message || 'Google login failed. Please try again.');
     } finally {

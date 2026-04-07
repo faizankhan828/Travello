@@ -305,6 +305,7 @@ export const itineraryAPI = {
   list: () => api.get('/itineraries/'),
   generate: (data) => api.post('/itineraries/generate/', data, { timeout: 120000 }),
   update: (id, data) => api.patch(`/itineraries/${id}/`, data),
+  email: (id, payload) => api.post(`/itineraries/${id}/email/`, payload),
   regenerateDay: (id, dayIndex) => api.post(`/itineraries/${id}/regenerate-day/`, { day_index: dayIndex }),
   regenerateFull: (id, data) => api.post(`/itineraries/${id}/regenerate-full/`, data),
   replacePlace: (id, dayIndex, itemIndex, replacement) => api.post(`/itineraries/${id}/replace-place/`, { day_index: dayIndex, item_index: itemIndex, replacement }),

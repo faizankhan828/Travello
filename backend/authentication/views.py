@@ -175,8 +175,8 @@ def login(request):
 def google_login(request):
     """Login or signup using Google OAuth ID token
     
-    Google authentication is trusted, so we issue JWT tokens directly
-    without requiring OTP verification.
+    Google authentication verifies identity, then requires email OTP
+    before issuing JWT tokens.
     """
     try:
         credential = request.data.get('credential') or request.data.get('id_token')
@@ -247,20 +247,30 @@ def google_login(request):
         if created or updated:
             user.save()
 
-        # --- Issue JWT tokens directly (no OTP needed for Google OAuth) ---
-        refresh = RefreshToken.for_user(user)
-        access_token = refresh.access_token
-        
-        action = 'signed up' if created else 'logged in'
-        logger.info(f"User {action} via Google: {email}")
+        # Require OTP for final login, consistent with email/password login policy.
+        otp = create_otp_for_user(user, purpose='login')
+        if not otp:
+            return Response(
+                {'error': 'Failed to create OTP. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        email_sent = send_otp_email(email, otp.otp_code, purpose='login')
+        if not email_sent:
+            return Response(
+                {'error': 'Failed to send OTP email. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        action = 'signed up' if created else 'authenticated'
+        logger.info(f"User {action} via Google; OTP sent to: {email}")
 
         return Response({
-            'message': f'Google authentication successful. Welcome!',
-            'user': UserSerializer(user).data,
-            'tokens': {
-                'access': str(access_token),
-                'refresh': str(refresh)
-            }
+            'message': 'Google authentication successful. OTP sent to your email.',
+            'email': email,
+            'next_step': 'verify_login_otp',
+            'requires_otp': True,
+            'is_google_login': True,
         }, status=status.HTTP_200_OK)
 
     except Exception as e:

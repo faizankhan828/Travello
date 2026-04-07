@@ -1,6 +1,8 @@
 import logging
 
 from django.db import transaction
+from django.conf import settings
+from django.core.mail import send_mail
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -330,6 +332,67 @@ class ItineraryReorderView(APIView):
             itinerary.save(update_fields=['days', 'updated_at'])
 
         return Response({'success': True, 'itinerary': ItinerarySerializer(itinerary).data})
+
+
+class ItineraryEmailView(APIView):
+    """
+    POST /api/itineraries/{id}/email/
+    Send itinerary summary email to the authenticated user's email.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, itinerary_id):
+        itinerary = get_object_or_404(Itinerary, id=itinerary_id, user=request.user)
+
+        recipient = (request.user.email or '').strip()
+        if not recipient:
+            return Response(
+                {'success': False, 'error': 'No email found on your account.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        subject = str(request.data.get('subject') or f"Your {itinerary.city} itinerary")
+        body = str(request.data.get('body') or '').strip()
+
+        if not body:
+            lines = [
+                f"{itinerary.city} Itinerary",
+                f"{itinerary.start_date} -> {itinerary.end_date}",
+                f"Pace: {itinerary.pace}",
+                f"Budget: {itinerary.budget_level}",
+                "",
+            ]
+            for idx, day in enumerate(itinerary.days or [], start=1):
+                lines.append(f"Day {idx} ({day.get('date', '')}) - {day.get('title', '')}")
+                for item in day.get('items', []):
+                    if item.get('type') != 'place':
+                        continue
+                    slot = item.get('slot') or 'Visit'
+                    name = item.get('name') or 'Place'
+                    category = item.get('category') or ''
+                    lines.append(f"  - [{slot}] {name} ({category})")
+                lines.append('')
+
+            if itinerary.notes:
+                lines.extend(['Notes:', str(itinerary.notes), ''])
+
+            body = "\n".join(lines)
+
+        try:
+            send_mail(
+                subject=subject,
+                message=body,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[recipient],
+                fail_silently=False,
+            )
+            return Response({'success': True, 'email_sent': True, 'recipient': recipient})
+        except Exception as exc:
+            logger.warning(f"Failed to send itinerary email for itinerary {itinerary.id}: {exc}")
+            return Response(
+                {'success': False, 'email_sent': False, 'error': 'Email sending failed. Please try again later.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
 
 
 class MoodListView(APIView):
