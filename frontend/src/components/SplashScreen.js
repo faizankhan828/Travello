@@ -1,10 +1,24 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaGlobe, FaPlane, FaMapMarkerAlt, FaHotel } from 'react-icons/fa';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 const SplashScreen = ({ onComplete }) => {
   const [progress, setProgress] = useState(0);
   const [currentPhase, setCurrentPhase] = useState(0);
+
+  // Memoize particle data so random positions are fixed for the component's lifetime
+  // (not recomputed on every re-render triggered by progress updates)
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 20 }, () => ({
+        startX: `${Math.random() * 100}%`,
+        startY: `${Math.random() * 100}%`,
+        endX: `${Math.random() * 100}%`,
+        endY: `${Math.random() * 100}%`,
+        duration: 5 + Math.random() * 5,
+      })),
+    [],
+  );
 
   useEffect(() => {
     // Progress bar animation - faster (3 seconds)
@@ -51,22 +65,19 @@ const SplashScreen = ({ onComplete }) => {
     >
       {/* Animated Background Particles */}
       <div className="absolute inset-0">
-        {[...Array(20)].map((_, i) => (
+        {particles.map((p, i) => (
           <motion.div
             key={i}
             className="absolute w-2 h-2 bg-sky-500 dark:bg-sky-400 rounded-full opacity-20"
-            initial={{
-              x: `${Math.random() * 100}%`,
-              y: `${Math.random() * 100}%`,
-            }}
+            initial={{ x: p.startX, y: p.startY }}
             animate={{
-              x: `${Math.random() * 100}%`,
-              y: `${Math.random() * 100}%`,
+              x: p.endX,
+              y: p.endY,
               scale: [1, 1.5, 1],
               opacity: [0.2, 0.4, 0.2],
             }}
             transition={{
-              duration: 5 + Math.random() * 5,
+              duration: p.duration,
               repeat: Infinity,
               ease: 'easeInOut',
             }}
@@ -215,7 +226,7 @@ const SplashScreen = ({ onComplete }) => {
             className="text-gray-700 dark:text-gray-300 text-base font-semibold mt-3"
             style={{ fontFamily: 'Inter, sans-serif' }}
           >
-            {progress}%
+            {Math.min(100, Math.floor(progress))}%
           </motion.p>
         </div>
 

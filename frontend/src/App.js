@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AnimatePresence } from 'framer-motion';
@@ -99,18 +99,18 @@ function App() {
     }
   }, []);
 
-  const handleSplashComplete = () => {
+  const handleSplashComplete = useCallback(() => {
     setShowSplash(false);
     setHasShownSplash(true);
     sessionStorage.setItem('splashShown', 'true');
-  };
+  }, []);
 
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <AnimatePresence mode="wait">
           {showSplash && !hasShownSplash && (
-            <SplashScreen onComplete={handleSplashComplete} />
+            <SplashScreen key="splash" onComplete={handleSplashComplete} />
           )}
         </AnimatePresence>
         

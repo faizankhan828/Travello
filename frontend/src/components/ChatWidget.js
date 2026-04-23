@@ -370,28 +370,27 @@ export default function ChatWidget() {
 
       {/* Chat Panel */}
       <div
-        className={`fixed z-40 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transform transition-all duration-300 flex flex-col ${
-          isOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
-        } ${!isMaximized ? 'bottom-24 right-6 w-[22rem] h-80' : 'w-[95vw] h-[90vh]'}`}
-        style={isMaximized && isOpen ? { position: 'fixed', bottom: 'auto', right: 'auto', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' } : {}}
+        className={`fixed z-[999] bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-300 flex flex-col ${
+          isOpen ? 'opacity-100 visible pointer-events-auto' : 'opacity-0 invisible pointer-events-none'
+        } ${!isMaximized ? 'bottom-24 right-6 w-[22rem] h-80' : 'inset-4'}`}
       >
         {/* Header */}
-        <div className="bg-primary-600 dark:bg-blue-700 text-white px-4 py-2.5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full" />
-            <span className="font-semibold text-sm">Travello AI Assistant</span>
+        <div className="flex-shrink-0 bg-primary-600 dark:bg-blue-700 text-white px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0" />
+            <span className="font-semibold text-sm truncate">Travello AI Assistant</span>
             {bookingFlow && (
-              <span className="text-[10px] bg-yellow-400 text-gray-900 px-1.5 py-0.5 rounded-full font-medium">
+              <span className="text-[10px] bg-yellow-400 text-gray-900 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
                 Booking
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 flex-shrink-0 ml-2">
             {/* Maximize/Restore button (Windows-style) */}
             <button
               onClick={() => setIsMaximized(!isMaximized)}
               title={isMaximized ? 'Restore' : 'Maximize'}
-              className="text-white/70 hover:text-white transition-colors p-1"
+              className="text-white/70 hover:text-white hover:bg-white/20 transition-colors p-2 rounded"
             >
               {isMaximized ? (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -405,7 +404,7 @@ export default function ChatWidget() {
               )}
             </button>
             {/* Close button */}
-            <button onClick={toggle} className="text-white/70 hover:text-white transition-colors p-1">
+            <button onClick={toggle} className="text-white/70 hover:text-white hover:bg-white/20 transition-colors p-2 rounded">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
               </svg>
