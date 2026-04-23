@@ -57,7 +57,21 @@ class AIItineraryService:
             enable_fallback_hybrid: If True, use hybrid scoring when confidence low
         """
         self.emotion_service = emotion_service or AIEmotionDetectionService()
-        self.ranker_service = ranker_service or LearningToRankService()
+        
+        # Initialize ranker with trained model if available
+        if ranker_service is None:
+            import os
+            from django.conf import settings
+            # Try to load trained model
+            model_path = os.path.join(
+                settings.BASE_DIR, 
+                'ml_models', 
+                'itinerary_ranker.pkl'
+            )
+            self.ranker_service = LearningToRankService(model_path=model_path)
+        else:
+            self.ranker_service = ranker_service
+        
         self.llm_service = llm_service or LLMEnhancementService()
         
         self.enable_emotion_detection = enable_emotion_detection
@@ -279,8 +293,12 @@ class AIItineraryService:
                 candidate_places=candidates,
                 user_interests=user_interests,
                 user_budget=user_budget,
+                user_pace=trip_params.get('pace', 'BALANCED'),
                 day_index=day_idx,
-                previously_visited=previously_visited
+                trip_total_days=num_days,
+                hotel_location=trip_params.get('hotel_location'),
+                previously_visited=previously_visited,
+                use_ml=self.enable_ml_ranking
             )
             
             # Select top places for this day

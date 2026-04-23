@@ -182,6 +182,7 @@ export const authAPI = {
   requestPasswordResetOtp: (payload) => api.post('/auth/request-otp/', payload),
   verifyPasswordResetOtpOnly: (payload) => api.post('/auth/verify-password-reset-otp-only/', payload),
   resetPasswordWithOtp: (payload) => api.post('/auth/verify-password-reset-otp/', payload),
+  changePassword: (payload) => api.post('/auth/change-password/', payload),
   googleLogin: (payload) => api.post('/auth/google/login/', payload),
 };
 
@@ -214,6 +215,13 @@ export const hotelAPI = {
     
     const response = await api.get('/hotels/');
     setCachedData(cacheKey, response.data);
+    return response;
+  },
+  getHotelsFresh: async () => {
+    // Bypass cache and fetch fresh hotel data (for refresh after bookings)
+    cache.delete('hotels_all');
+    const response = await api.get('/hotels/');
+    setCachedData('hotels_all', response.data);
     return response;
   },
   getHotel: (id) => api.get(`/hotels/${id}/`),

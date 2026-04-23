@@ -84,8 +84,25 @@ const AdminDashboard = () => {
   useEffect(() => {
     const isAdmin = localStorage.getItem('isAdmin') === 'true';
     if (!isAdmin) { navigate('/login'); return; }
-    hotelAPI.getAllHotels().then(r => setHotels(r.data || [])).catch(() => {});
+    // Load fresh data initially for admin dashboard
+    hotelAPI.getHotelsFresh().then(r => setHotels(r.data || [])).catch(() => {});
   }, [navigate]);
+
+  // Auto-refresh hotel data every 30 seconds when on manage tab (real-time inventory updates)
+  useEffect(() => {
+    if (activeTab === 'manage') {
+      // Fetch immediately when switching to manage tab
+      hotelAPI.getHotelsFresh().then(r => setHotels(r.data || [])).catch(() => {});
+      
+      // Set up auto-refresh interval
+      const interval = setInterval(() => {
+        hotelAPI.getHotelsFresh().then(r => setHotels(r.data || [])).catch(() => {});
+      }, 30000); // Refresh every 30 seconds
+      
+      // Clean up interval when switching away from manage tab
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
 
   /* ── Fetch analytics ── */
   const fetchAnalytics = useCallback(async (showLoader = true) => {
@@ -974,7 +991,7 @@ const AdminDashboard = () => {
                   }}
                   className="p-6 bg-gradient-to-br from-gray-600 to-gray-800 hover:from-gray-700 hover:to-gray-900 text-white rounded-xl shadow-lg hover:shadow-xl transition-all">
                   <FaUsers className="text-3xl mb-3" />
-                  <h3 className="text-lg font-bold mb-1">Django Admin</h3>
+                  <h3 className="text-lg font-bold mb-1">Super Admin</h3>
                   <p className="text-xs opacity-90">Users, payments, raw data</p>
                 </motion.button>
               </div>

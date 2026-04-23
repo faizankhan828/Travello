@@ -84,13 +84,27 @@ const HotelDetailPage = () => {
     return Number(selectedRoomType.price_per_night || 0) * roomsBooked * nights;
   }, [selectedRoomType, nights, roomsBooked]);
 
+  const hasSelectedDates = Boolean(checkIn && checkOut);
+
   const bookedRooms = useCallback(
     (roomType) => {
-      const availableRooms = availability?.room_types?.find((rt) => rt.id === roomType.id)?.available_rooms;
-      const available = availableRooms ?? roomType.available_rooms ?? 0;
-      return Math.max((roomType.total_rooms || 0) - available, 0);
+      const liveAvailability = availability?.room_types?.find((rt) => rt.id === roomType.id)?.available_rooms;
+      
+      // When dates are selected: use API response
+      // When no dates: can't calculate booked (no context), so return null
+      if (!hasSelectedDates) {
+        return null;  // Don't show booked count without selected dates
+      }
+
+      // If we have live availability from API, calculate booked
+      if (liveAvailability !== undefined && liveAvailability !== null) {
+        return Math.max((roomType.total_rooms || 0) - liveAvailability, 0);
+      }
+
+      // If no live availability, we can't calculate
+      return null;
     },
-    [availability]
+    [availability, hasSelectedDates]
   );
 
   const availabilityForSelected = useMemo(() => {
@@ -98,7 +112,9 @@ const HotelDetailPage = () => {
     return availability?.room_types?.find((rt) => rt.id === selectedRoomType.id) || null;
   }, [availability, selectedRoomType]);
 
-  const availableRoomsForSelected = availabilityForSelected?.available_rooms ?? selectedRoomType?.available_rooms ?? 0;
+  const availableRoomsForSelected = hasSelectedDates
+    ? (availabilityForSelected?.available_rooms ?? null)
+    : (selectedRoomType?.total_rooms ?? 0);  // When no dates, show total_rooms
   const overRequested = roomsBooked > (availableRoomsForSelected || 0);
 
   const handleCheckAvailability = async () => {
@@ -109,6 +125,7 @@ const HotelDetailPage = () => {
 
     setError(null);
     setAvailabilityLoading(true);
+    setAvailability(null);
     try {
       const payload = {
         hotel: Number(id),
@@ -273,9 +290,31 @@ const HotelDetailPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {hotel.room_types.map((room) => {
                     const isSelected = room.id === selectedRoomTypeId;
+                    const liveAvailability = availability?.room_types?.find((rt) => rt.id === room.id)?.available_rooms;
                     const booked = bookedRooms(room);
-                    const available = availability?.room_types?.find((rt) => rt.id === room.id)?.available_rooms ?? room.available_rooms ?? 0;
-                    const soldOut = available === 0;
+                    
+                    // Determine which availability value to show
+                    let displayedAvailable;
+                    let soldOut = false;
+                    
+                    if (hasSelectedDates) {
+                      // User selected dates - use API response
+                      if (availabilityLoading && liveAvailability == null) {
+                        // Still loading
+                        displayedAvailable = 'Checking...';
+                      } else if (liveAvailability != null) {
+                        // Have API response
+                        displayedAvailable = liveAvailability;
+                        soldOut = liveAvailability === 0;
+                      } else {
+                        // Error or empty response
+                        displayedAvailable = '?';
+                      }
+                    } else {
+                      // No dates selected - show total rooms
+                      displayedAvailable = room.total_rooms || 0;
+                      soldOut = false;
+                    }
 
                     return (
                       <button
@@ -298,11 +337,11 @@ const HotelDetailPage = () => {
                         </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
                           <p>Total rooms: {room.total_rooms || 0}</p>
-                          <p>Available: {available > 0 ? available : room.total_rooms || 0}{soldOut ? ' (sold out for selected dates)' : ''}</p>
-                          <p>Booked: {booked}</p>
-                          {availability && (
+                          <p>Available: {typeof displayedAvailable === 'number' ? displayedAvailable : displayedAvailable}{soldOut ? ' (sold out)' : ''}</p>
+                          <p>Booked: {hasSelectedDates && booked !== null ? booked : '—'}</p>
+                          {hasSelectedDates && availability && (
                             <p className="text-xs text-green-600 dark:text-green-400">
-                              Availability for selected dates: {available > 0 ? available : room.total_rooms} left
+                              ✓ Data for selected dates
                             </p>
                           )}
                         </div>
@@ -374,8 +413,8 @@ const HotelDetailPage = () => {
                     <p className="font-semibold mb-1">Selection</p>
                     <p>Room: <span className="capitalize font-semibold">{selectedRoomType.type}</span></p>
                     <p>Requested: {roomsBooked} {roomsBooked === 1 ? 'room' : 'rooms'}</p>
-                    <p>Available for dates: <span className={`font-semibold ${availableRoomsForSelected > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {availableRoomsForSelected}
+                    <p>Available for dates: <span className={`font-semibold ${availableRoomsForSelected != null && availableRoomsForSelected > 0 ? 'text-green-600 dark:text-green-400' : availableRoomsForSelected === 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                      {availableRoomsForSelected == null ? 'Select dates' : availableRoomsForSelected}
                     </span></p>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       Availability includes pending and confirmed bookings.

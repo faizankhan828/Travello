@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaPlus, FaEdit, FaTrash, FaStar, FaWifi, FaParking } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaStar, FaWifi, FaParking, FaSyncAlt } from 'react-icons/fa';
 import { X } from 'lucide-react';
 import { hotelAPI } from '../services/api';
 
@@ -24,6 +24,7 @@ const AdminHotels = () => {
   const [hotels, setHotels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingHotel, setEditingHotel] = useState(null);
   const [formData, setFormData] = useState({
@@ -47,18 +48,46 @@ const AdminHotels = () => {
 
   useEffect(() => {
     fetchHotels();
+    
+    // Set up auto-refresh interval to update hotel inventory in real-time
+    // Every 30 seconds, fetch fresh hotel data to reflect booking changes
+    const interval = setInterval(() => {
+      hotelAPI.getHotelsFresh().then(r => {
+        setHotels(r.data || []);
+      }).catch(err => {
+        console.error('Auto-refresh error:', err);
+      });
+    }, 30000); // Refresh every 30 seconds
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(interval);
   }, []);
 
   const fetchHotels = async () => {
     setLoading(true);
     try {
-      const response = await hotelAPI.getAllHotels();
+      // Always use fresh data on admin hotels page
+      const response = await hotelAPI.getHotelsFresh();
       setHotels(response.data || []);
     } catch (error) {
       console.error('Error fetching hotels:', error);
       alert('Failed to load hotels. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // Use fresh data bypass to avoid cache
+      const response = await hotelAPI.getHotelsFresh();
+      setHotels(response.data || []);
+    } catch (error) {
+      console.error('Error refreshing hotels:', error);
+      alert('Failed to refresh hotel data. Please try again.');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -207,17 +236,39 @@ const AdminHotels = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Manage Hotels</h1>
-            <p className="text-gray-600 dark:text-gray-400">Add, edit, or remove hotels from the system</p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/admin-dashboard')}
+              className="px-3 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              title="Back to Dashboard"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Manage Hotels</h1>
+              <p className="text-gray-600 dark:text-gray-400">Add, edit, or remove hotels from the system</p>
+            </div>
           </div>
-          <button
-            onClick={() => handleOpenModal()}
-            className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-          >
-            <FaPlus />
-            Add Hotel
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="px-4 py-3 bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+              title="Refresh to see latest availability after bookings"
+            >
+              <FaSyncAlt className={refreshing ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+            <button
+              onClick={() => handleOpenModal()}
+              className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+            >
+              <FaPlus />
+              Add Hotel
+            </button>
+          </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">

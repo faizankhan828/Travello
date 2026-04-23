@@ -175,10 +175,128 @@ class RoomType(models.Model):
     @property
     def available_rooms(self):
         """
-        Get currently available rooms (from today onwards).
-        This is a convenience property for admin/display purposes.
+        Snapshot availability for admin/display purposes.
+
+        This is intentionally different from get_available_rooms(check_in, check_out):
+        it subtracts all active upcoming bookings (today onward) so admin/super-admin
+        dashboards reflect booking changes immediately without requiring a date range.
         """
-        return self.get_available_rooms()
+        from django.db.models import Sum
+
+        today = timezone.localdate()
+        reserved = Booking.objects.filter(
+            room_type=self,
+            status__in=['PENDING', 'PAID', 'CONFIRMED'],
+            check_out__gt=today,
+        ).aggregate(total=Sum('rooms_booked'))['total'] or 0
+
+        total = self.total_rooms or 0
+        return max(0, total - reserved)
+    
+    def get_inventory_status(self, check_in=None, check_out=None):
+        """
+        Get detailed inventory status for debugging and monitoring.
+        
+        Returns:
+            dict: {
+                'total_rooms': 10,
+                'available_rooms': 5,
+                'booked_rooms': 5,
+                'active_bookings': 3,
+                'date_range': '2026-04-15 to 2026-04-20',
+                'bookings': [list of overlapping booking ids],
+                'sanity_check': True/False  # All counts valid?
+            }
+        """
+        from django.utils import timezone
+        from django.db.models import Sum
+        
+        if check_in is None:
+            check_in = timezone.now().date()
+        if check_out is None:
+            check_out = check_in + timezone.timedelta(days=1)
+        
+        overlapping_bookings = Booking.objects.filter(
+            room_type=self,
+            status__in=['PENDING', 'PAID', 'CONFIRMED'],
+            check_in__lt=check_out,
+            check_out__gt=check_in
+        )
+        
+        booked = overlapping_bookings.aggregate(
+            total=Sum('rooms_booked')
+        )['total'] or 0
+        
+        available = max(0, self.total_rooms - booked)
+        
+        # Sanity check: booked shouldn't exceed total
+        sanity_check = booked <= self.total_rooms
+        
+        return {
+            'total_rooms': self.total_rooms,
+            'available_rooms': available,
+            'booked_rooms': booked,
+            'active_bookings': overlapping_bookings.count(),
+            'date_range': f'{check_in.isoformat()} to {check_out.isoformat()}',
+            'booking_ids': list(overlapping_bookings.values_list('id', flat=True)),
+            'sanity_check': sanity_check,
+        }
+    
+    def verify_inventory_integrity(self, check_in=None, check_out=None):
+        """
+        Verify that room counts are valid (no negative, no overbooking).
+        
+        Returns:
+            dict: {
+                'valid': True/False,
+                'total_rooms': int,
+                'booked_rooms': int,
+                'available_rooms': int,
+                'errors': [list of issues found]
+            }
+        """
+        from django.db.models import Sum
+        from django.utils import timezone
+        
+        if check_in is None:
+            check_in = timezone.now().date()
+        if check_out is None:
+            check_out = check_in + timezone.timedelta(days=1)
+        
+        errors = []
+        
+        if self.total_rooms < 1:
+            errors.append(f"Invalid total_rooms: {self.total_rooms} (must be >= 1)")
+        
+        overlapping_bookings = Booking.objects.filter(
+            room_type=self,
+            status__in=['PENDING', 'PAID', 'CONFIRMED'],
+            check_in__lt=check_out,
+            check_out__gt=check_in
+        )
+        
+        booked = overlapping_bookings.aggregate(
+            total=Sum('rooms_booked')
+        )['total'] or 0
+        
+        if booked > self.total_rooms:
+            errors.append(
+                f"Overbooking detected! {booked} rooms booked but only {self.total_rooms} exist. "
+                f"Booking IDs: {list(overlapping_bookings.values_list('id', flat=True))}"
+            )
+        
+        if booked < 0:
+            errors.append(f"Negative booked count: {booked}")
+        
+        available = max(0, self.total_rooms - booked)
+        
+        return {
+            'valid': len(errors) == 0,
+            'total_rooms': self.total_rooms,
+            'booked_rooms': booked,
+            'available_rooms': available,
+            'errors': errors,
+        }
 
 
 class Booking(models.Model):

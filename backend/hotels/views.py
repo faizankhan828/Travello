@@ -124,47 +124,94 @@ class BookingViewSet(viewsets.ModelViewSet):
         Create a new booking with payment method handling:
         - ARRIVAL: Create booking with status=PENDING
         - ONLINE: Create temporary booking for payment processing
+        
+        Implements race-condition-safe booking with row-level locking:
+        1. Lock the room_type row
+        2. Re-check availability
+        3. Create booking
+        4. Unlock (transaction end)
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
-        # Get payment method
+        room_type = serializer.validated_data.get('room_type')
+        check_in = serializer.validated_data.get('check_in')
+        check_out = serializer.validated_data.get('check_out')
+        rooms_booked = serializer.validated_data.get('rooms_booked')
+        hotel = serializer.validated_data.get('hotel')
         payment_method = serializer.validated_data.get('payment_method', 'ONLINE')
         
-        # Auto-populate guest info from user if not provided
+        # STEP 1: Lock room_type row to prevent race conditions
+        logger.info(f"[BOOKING] Attempting to book {rooms_booked} {room_type.get_type_display()} room(s) at {hotel.name}")
+        logger.info(f"[BOOKING] Check-in: {check_in}, Check-out: {check_out}, User: {request.user.email}")
+        
+        # Use select_for_update() to lock the room_type row
+        locked_room_type = RoomType.objects.select_for_update().get(id=room_type.id)
+        
+        # STEP 2: Re-check availability within transaction (double-check pattern)
+        available_before = locked_room_type.get_available_rooms(check_in, check_out)
+        logger.info(f"[BOOKING] Available rooms BEFORE booking (re-checked): {available_before}")
+        
+        if rooms_booked > available_before:
+            error_msg = f"Booking failed! Only {available_before} room(s) available, but {rooms_booked} requested."
+            logger.warning(f"[BOOKING] {error_msg}")
+            return Response({
+                'success': False,
+                'error': 'insufficient_inventory',
+                'message': error_msg,
+                'available_rooms': available_before,
+                'requested_rooms': rooms_booked,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # STEP 3: Populate guest info from user if not provided
         if not serializer.validated_data.get('guest_email'):
             serializer.validated_data['guest_email'] = request.user.email
         if not serializer.validated_data.get('guest_name'):
             serializer.validated_data['guest_name'] = request.user.get_full_name() or request.user.username
         
-        # Set the user to the current logged-in user
+        # STEP 4: Create the booking (within locked transaction)
         booking = serializer.save(user=request.user)
         
-        # Handle different payment methods
+        # STEP 5: Verify availability after creation
+        available_after = locked_room_type.get_available_rooms(check_in, check_out)
+        logger.info(f"[BOOKING] Available rooms AFTER booking: {available_after}")
+        logger.info(f"[BOOKING] Inventory change: {available_before} → {available_after} (delta: {available_after - available_before})")
+        
+        # Validate the decrement is correct
+        expected_after = available_before - rooms_booked
+        if available_after != expected_after:
+            logger.error(
+                f"[BOOKING] ⚠️ INVENTORY MISMATCH! Expected {expected_after}, got {available_after}. "
+                f"This indicates a database inconsistency or overlapping bookings."
+            )
+        
+        # STEP 6: Handle different payment methods
         if payment_method == 'ARRIVAL':
-            # Pay on arrival - booking is PENDING until they arrive
             booking.status = 'PENDING'
             booking.save()
-            
-            logger.info(f"Booking {booking.id} created with ARRIVAL payment method - status: PENDING")
+            logger.info(f"[BOOKING] ✓ Booking {booking.booking_reference} created - ARRIVAL payment - Status: PENDING")
         
         elif payment_method == 'ONLINE':
-            # Online payment - booking stays PENDING until payment confirmed
             booking.status = 'PENDING'
-            # Lock the room for 15 minutes
             booking.lock_room(minutes=15)
             booking.save()
-            
-            logger.info(f"Booking {booking.id} created with ONLINE payment method - awaiting payment (locked for 15m)")
+            logger.info(f"[BOOKING] ✓ Booking {booking.booking_reference} created - ONLINE payment - Room locked 15min")
         
-        # Return full booking details
+        # STEP 7: Return full booking details
         response_serializer = BookingSerializer(booking)
+        logger.info(f"[BOOKING] ✓ SUCCESS - Booking {booking.id} ({booking.booking_reference}) created successfully")
+        
         return Response({
             'success': True,
             'message': 'Booking created successfully',
             'booking': response_serializer.data,
             'payment_required': payment_method == 'ONLINE',
-            'booking_id': booking.id
+            'booking_id': booking.id,
+            'inventory_status': {
+                'before_booking': available_before,
+                'after_booking': available_after,
+                'rooms_booked': rooms_booked
+            }
         }, status=status.HTTP_201_CREATED)
     
     @transaction.atomic
@@ -172,15 +219,32 @@ class BookingViewSet(viewsets.ModelViewSet):
         """
         PATCH /api/admin/bookings/{id}/
         Admin only - Update booking status (COMPLETED, CANCELLED, etc.)
+        
+        When cancelling, automatically restores room inventory:
+        - Booking status changes to CANCELLED
+        - Rooms become available again for that date range
+        - Logging tracks inventory restoration
         """
         booking = self.get_object()
+        old_status = booking.status
         new_status = request.data.get('status', booking.status)
+        
+        # STEP 1: Log cancellation intent
+        if new_status == 'CANCELLED' and old_status != 'CANCELLED':
+            logger.info(f"[CANCEL] Initiating cancellation of booking {booking.booking_reference}")
+            logger.info(f"[CANCEL] User: {request.user.username}, Booking ID: {booking.id}")
+            logger.info(f"[CANCEL] Rooms: {booking.rooms_booked} × {booking.room_type.get_type_display()}")
+            logger.info(f"[CANCEL] Dates: {booking.check_in} to {booking.check_out}")
+            
+            # STEP 2: Check inventory before cancellation
+            available_before = booking.room_type.get_available_rooms(booking.check_in, booking.check_out)
+            logger.info(f"[CANCEL] Available rooms BEFORE cancellation: {available_before}")
 
         serializer = self.get_serializer(booking, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        # Auto-populate cancellation tracking when admin sets status to CANCELLED
+        # Auto-populate cancellation tracking when status changes to CANCELLED
         if new_status == 'CANCELLED' and booking.status == 'CANCELLED':
             if not booking.cancelled_at:
                 booking.cancelled_at = timezone.now()
@@ -188,6 +252,7 @@ class BookingViewSet(viewsets.ModelViewSet):
                 booking.cancelled_by = request.user
             if not booking.cancellation_reason:
                 booking.cancellation_reason = request.data.get('cancellation_reason', 'Cancelled by admin')
+            
             # Set refund tracking for paid bookings
             if booking.refund_status == 'NONE':
                 try:
@@ -195,20 +260,45 @@ class BookingViewSet(viewsets.ModelViewSet):
                     if payment and payment.status == 'COMPLETED':
                         booking.refund_amount = payment.amount
                         booking.refund_status = 'PENDING'
-                except Exception:
-                    pass
+                        logger.info(f"[CANCEL] Refund initiated - Amount: {booking.refund_amount}, Status: PENDING")
+                except Exception as e:
+                    logger.warning(f"[CANCEL] Could not process refund: {str(e)}")
+            
             booking.save(update_fields=[
                 'cancelled_at', 'cancelled_by', 'cancellation_reason',
                 'refund_amount', 'refund_status',
             ])
+            
+            # STEP 3: Verify inventory after cancellation
+            available_after = booking.room_type.get_available_rooms(booking.check_in, booking.check_out)
+            logger.info(f"[CANCEL] Available rooms AFTER cancellation: {available_after}")
+            
+            # Calculate expected restoration
+            expected_after = available_before + booking.rooms_booked
+            if available_after == expected_after:
+                logger.info(
+                    f"[CANCEL] ✓ INVENTORY RESTORED - {available_before} → {available_after} "
+                    f"(+{booking.rooms_booked} rooms returned)"
+                )
+            else:
+                logger.error(
+                    f"[CANCEL] ⚠️ INVENTORY MISMATCH! Expected {expected_after}, got {available_after}. "
+                    f"This indicates a database inconsistency."
+                )
+            
+            logger.info(f"[CANCEL] ✓ SUCCESS - Booking {booking.booking_reference} cancelled by {request.user.username}")
 
-        logger.info(f"Booking {booking.id} updated by admin {request.user.username}")
+        logger.info(f"[UPDATE] Booking {booking.id} updated - Status: {old_status} → {booking.status}")
 
         response_serializer = BookingSerializer(booking)
         return Response({
             'success': True,
             'message': 'Booking updated successfully',
-            'booking': response_serializer.data
+            'booking': response_serializer.data,
+            'status_change': {
+                'old_status': old_status,
+                'new_status': booking.status
+            }
         })
     
     @action(detail=False, methods=['get'], url_path='user')

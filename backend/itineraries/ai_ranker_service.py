@@ -3,10 +3,12 @@ Layer 2: Learning-to-Rank Model Service
 
 ML-based ranking of places for itinerary recommendations.
 Uses LightGBM model trained on user preferences + place features.
+Enhanced with HuggingFace semantic embeddings for personalization.
 """
 
 import logging
 import pickle
+import os
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
@@ -22,6 +24,15 @@ except ImportError:
     LIGHTGBM_AVAILABLE = False
     logger.warning("LightGBM not available. Using rule-based fallback.")
     lgb = None
+
+# Try importing HuggingFace ranker
+try:
+    from itineraries.hf_ranker import create_hf_ranker
+    HF_AVAILABLE = True
+except ImportError:
+    HF_AVAILABLE = False
+    logger.warning("HuggingFace ranker not available.")
+    create_hf_ranker = None
 
 
 @dataclass
@@ -96,47 +107,92 @@ class LearningToRankService:
         'FUN': 4, 'SHOPPING': 5, 'NATURE': 6, 'ROMANTIC': 7, 'FAMILY': 8
     }
     
+    BUDGET_TO_ID = {'LOW': 0, 'MEDIUM': 1, 'LUXURY': 2}
+    
     CATEGORY_TO_ID = {
-        'restaurant': 0, 'museum': 1, 'park': 2, 'temple': 3,
-        'shopping': 4, 'hotel': 5, 'beach': 6, 'cafe': 7, 'other': 8
+        'religious': 0, 'history': 1, 'culture': 2, 'food': 3,
+        'nature': 4, 'shopping': 5, 'modern': 6, 'other': 7
     }
+    
+    PACE_TO_ID = {'RELAXED': 0, 'BALANCED': 1, 'PACKED': 2}
     
     def __init__(self, model_path: Optional[str] = None):
         """
         Initialize ranking service.
         
         Args:
-            model_path: Path to saved LightGBM model. If None, use rule-based fallback.
+            model_path: Path to saved LightGBM model package. If None, use rule-based fallback.
         """
         self.model = None
+        self.scaler = None
+        self.feature_columns = None
+        self.categorical_mappings = None
         self.model_version = None
         self.last_confidence = 0.0
         self.inference_latency_ms = 0
         
+        # Initialize HuggingFace ranker for semantic scoring
+        self.hf_ranker = None
+        if HF_AVAILABLE and create_hf_ranker:
+            try:
+                self.hf_ranker = create_hf_ranker()
+                logger.info("HuggingFace ranker initialized for semantic scoring")
+            except Exception as e:
+                logger.warning(f"Failed to initialize HF ranker: {e}")
+        
         if model_path and LIGHTGBM_AVAILABLE:
-            self.model = self._load_model(model_path)
+            self._load_model_package(model_path)
         else:
             logger.info("ML ranking model not loaded. Using rule-based fallback.")
     
-    def _load_model(self, model_path: str) -> Optional['lgb.Booster']:
-        """Load pre-trained LightGBM model"""
+    def _load_model_package(self, model_path: str):
+        """Load pre-trained LightGBM model package with scaler and metadata"""
         try:
-            model = lgb.Booster(model_file=model_path)
-            logger.info(f"Loaded LightGBM model from {model_path}")
-            return model
+            if not os.path.exists(model_path):
+                logger.warning(f"Model file not found at {model_path}")
+                return
+            
+            with open(model_path, 'rb') as f:
+                package = pickle.load(f)
+            
+            self.model = package.get('model')
+            self.scaler = package.get('scaler')
+            self.feature_columns = package.get('feature_columns')
+            self.categorical_mappings = package.get('categorical_mappings')
+            
+            logger.info(f"Loaded LightGBM model package from {model_path}")
+            logger.info(f"  Features: {len(self.feature_columns) if self.feature_columns else 0}")
+            logger.info(f"  Trained: {package.get('trained_at', 'unknown')}")
+            
         except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            return None
+            logger.error(f"Failed to load model package: {e}")
+            self.model = None
+            self.scaler = None
+    
+    def _get_place_attr(self, place, attr: str, default=None):
+        """
+        Get attribute from place (handles both dict and model instances).
+        Works with:
+        - Django Place model instances
+        - Plain dict objects
+        """
+        # Try dict access first
+        if hasattr(place, 'get'):
+            return place.get(attr, default)
+        # Fall back to model attribute access
+        return getattr(place, attr, default)
     
     def rank_places(
         self,
         user_mood: str,
-        candidate_places: List[Dict],
+        candidate_places: List,  # Can be List[Dict] or Django QuerySet
         user_interests: List[str],
         user_budget: str,
+        user_pace: str = 'BALANCED',
         day_index: int = 0,
-        time_of_day: str = "morning",
+        trip_total_days: int = 7,
         current_location: Tuple[float, float] = None,
+        hotel_location: Tuple[float, float] = None,
         previously_visited: List[str] = None,
         use_ml: bool = True
     ) -> List[RankedPlace]:
@@ -145,14 +201,16 @@ class LearningToRankService:
         
         Args:
             user_mood: User's selected mood
-            candidate_places: List of place dicts with id, name, category, rating, etc.
-            user_interests: User's interests (e.g., ["nature", "history"])
-            user_budget: Budget level ("low", "medium", "high")
+            candidate_places: List of place dicts or Django Place instances
+            user_interests: User's interests
+            user_budget: Budget level
+            user_pace: Trip pace
             day_index: Day number in trip (0-indexed)
-            time_of_day: Current time ("morning", "afternoon", "evening")
+            trip_total_days: Total days in trip
             current_location: (lat, lon) tuple
+            hotel_location: (lat, lon) hotel position for distance calculation
             previously_visited: List of place IDs used in earlier days
-            use_ml: Whether to use ML model (vs pure rule-based)
+            use_ml: Whether to use ML model
             
         Returns:
             List of RankedPlace objects sorted by score (descending)
@@ -162,39 +220,89 @@ class LearningToRankService:
         
         ranked_places = []
         
+        # Debug: print user input to verify personalization signals
+        logger.info(f"=== RANKING FOR USER ===")
+        logger.info(f"USER_MOOD: {user_mood}")
+        logger.info(f"USER_INTERESTS: {user_interests}")
+        logger.info(f"USER_BUDGET: {user_budget}")
+        logger.info(f"USER_PACE: {user_pace}")
+        
+        # STEP 2: Get HF scores once for all places (batch)
+        hf_scores = {}
+        if self.hf_ranker:
+            try:
+                hf_scores = self.hf_ranker.rank_places(
+                    user_mood=user_mood,
+                    user_interests=user_interests or [],
+                    user_budget=user_budget,
+                    user_pace=user_pace,
+                    candidate_places=candidate_places
+                )
+                logger.info(f"HF SCORES CALCULATED: {len(hf_scores)} places")
+                if hf_scores:
+                    sample_place_id = list(hf_scores.keys())[0]
+                    logger.info(f"  Sample HF score ({sample_place_id}): {hf_scores[sample_place_id]:.4f}")
+            except Exception as e:
+                logger.warning(f"HF scoring failed: {e}")
+                hf_scores = {}
+        
         for place in candidate_places:
-            # Build feature vector for this place
-            features = self._build_features(
+            place_id = self._get_place_attr(place, 'id')
+            place_name = self._get_place_attr(place, 'name')
+            
+            # Extract features in training order
+            features = self._extract_features(
                 user_mood=user_mood,
-                user_interests=user_interests,
                 user_budget=user_budget,
+                user_pace=user_pace,
+                user_interests=user_interests,
                 place=place,
                 day_index=day_index,
-                time_of_day=time_of_day,
-                current_location=current_location,
+                trip_total_days=trip_total_days,
+                hotel_location=hotel_location,
                 previously_visited=previously_visited or []
             )
             
-            # Get ranking score
-            if use_ml and self.model:
-                score, confidence = self._get_ml_score(features)
-                is_ml = True
+            # Get component scores
+            ml_score = 0.0
+            fallback_score = 0.0
+            
+            if use_ml and self.model and self.scaler:
+                ml_score, confidence = self._get_ml_score(features)
             else:
-                score, confidence = self._get_fallback_score(features)
-                is_ml = False
+                fallback_score, confidence = self._get_fallback_score(features)
+            
+            # Get HF score
+            hf_score = hf_scores.get(place_id, 0.5)  # default to neutral
+            
+            # If no ML model, use fallback as primary
+            if ml_score == 0.0 and fallback_score == 0.0:
+                fallback_score, _ = self._get_fallback_score(features)
+            
+            # COMBINED SCORE FORMULA:
+            # 0.55 * ML_score + 0.35 * HF_score + 0.10 * fallback_score
+            final_score = (
+                0.55 * ml_score +           # Structural patterns from LGB
+                0.35 * hf_score +           # Semantic similarity from HF
+                0.10 * fallback_score       # Rule-based fallback
+            )
+            
+            # Debug first 3 places
+            if len(ranked_places) < 3:
+                logger.info(f"  Place '{place_name}': ML={ml_score:.3f}, HF={hf_score:.3f}, Fallback={fallback_score:.3f} → FINAL={final_score:.3f}")
             
             # Apply diversity penalty
-            if place.get('id') in (previously_visited or []):
-                days_ago = day_index  # Simplified: used in earlier days
-                diversity_penalty = 0.8 ** days_ago  # Exponential decay
-                score *= (1 - diversity_penalty * 0.2)  # Reduce score by up to 20%
+            if place_id in (previously_visited or []):
+                days_ago = day_index
+                diversity_penalty = 0.8 ** max(days_ago, 1)
+                final_score *= (1 - diversity_penalty * 0.2)
             
             ranked_places.append(RankedPlace(
-                place_id=place.get('id'),
-                place_name=place.get('name'),
-                score=score,
+                place_id=place_id,
+                place_name=place_name,
+                score=final_score,
                 confidence=confidence,
-                is_ml_ranked=is_ml
+                is_ml_ranked=use_ml and self.model is not None
             ))
         
         # Sort by score descending
@@ -211,92 +319,114 @@ class LearningToRankService:
         
         return ranked_places
     
-    def _build_features(
+    def _extract_features(
         self,
         user_mood: str,
-        user_interests: List[str],
         user_budget: str,
+        user_pace: str,
+        user_interests: List[str],
         place: Dict,
         day_index: int,
-        time_of_day: str,
-        current_location: Tuple[float, float],
+        trip_total_days: int,
+        hotel_location: Tuple[float, float],
         previously_visited: List[str]
-    ) -> RankingFeatures:
-        """Build feature vector for a single place"""
+    ) -> np.ndarray:
+        """
+        Extract features in the same order as training pipeline.
+        Returns: [17,] array matching FEATURE_COLUMNS from training.
+        """
         
-        # Time of day encoding
-        time_encoding = {'morning': 0, 'afternoon': 1, 'evening': 2}
-        time_code = time_encoding.get(time_of_day.lower(), 1)
+        # User features
+        user_mood_id = self.MOOD_TO_ID.get(user_mood.upper(), 0)
+        user_budget_id = self.BUDGET_TO_ID.get(user_budget.upper(), 0)
+        user_pace_id = self.PACE_TO_ID.get(user_pace.upper(), 0)
+        user_interests_count = len(user_interests) if user_interests else 0
         
-        # Budget encoding
-        budget_encoding = {'low': 0, 'medium': 1, 'high': 2, 'luxury': 3}
-        budget_code = budget_encoding.get(user_budget.lower(), 1)
+        # Place features
+        place_category = self._get_place_attr(place, 'category', 'other').lower()
+        place_category_id = self.CATEGORY_TO_ID.get(place_category, 7)
+        place_rating = (self._get_place_attr(place, 'average_rating') or self._get_place_attr(place, 'rating', 3.5)) / 5.0
+        place_budget_id = self.BUDGET_TO_ID.get((self._get_place_attr(place, 'budget_level', 'MEDIUM') or 'MEDIUM').upper(), 0)
+        place_visit_minutes = (self._get_place_attr(place, 'estimated_visit_minutes', 90) or 90) / 300.0
+        place_tags = self._get_place_attr(place, 'tags', []) or []
+        place_tags_count = len(place_tags) if place_tags else 0
+        place_ideal_start = (self._get_place_attr(place, 'ideal_start_hour', 9) or 9) / 24.0
+        place_ideal_end = (self._get_place_attr(place, 'ideal_end_hour', 18) or 18) / 24.0
         
-        # Mood encoding
-        mood_code = self.MOOD_TO_ID.get(user_mood.upper(), 0)
+        # Contextual features
+        trip_day = day_index / max(trip_total_days, 1)
+        trip_total_days_norm = trip_total_days / 7.0  # Normalize typical trip is 7 days
         
-        # Category encoding
-        category = place.get('category', 'other').lower()
-        category_code = self.CATEGORY_TO_ID.get(category, self.CATEGORY_TO_ID['other'])
-        
-        # Distance calculation
-        distance = 0.0
-        if current_location and place.get('latitude') and place.get('longitude'):
-            distance = self._haversine_distance(
-                current_location[0], current_location[1],
-                place['latitude'], place['longitude']
+        # Geographic
+        distance_km = 0.0
+        place_lat = self._get_place_attr(place, 'latitude')
+        place_lng = self._get_place_attr(place, 'longitude')
+        if hotel_location and place_lat and place_lng:
+            distance_km = self._haversine_distance(
+                hotel_location[0], hotel_location[1],
+                place_lat, place_lng
             )
+        distance_km_norm = distance_km / 100.0  # Normalize
         
-        # Interest tag matching
-        place_tags = place.get('tags', [])
-        interest_matches = len(set(user_interests) & set(place_tags))
-        tag_match_vec = [float(interest_matches) / max(len(user_interests), 1)]
+        # Interaction features
+        user_interests_match = 1.0 if (
+            user_interests and place_tags and
+            any(tag.lower() in [i.lower() for i in user_interests] for tag in place_tags)
+        ) else 0.0
         
-        # Place tag vector (simplified one-hot)
-        place_tag_vec = [float(tag in place_tags) for tag in ['outdoor', 'cultural', 'food']]
+        budget_match = 1.0 if (
+            place_budget_id <= user_budget_id
+        ) else 0.0
         
-        # Previously visited count (recency)
-        prev_visit_count = 0
-        if place.get('id') in previously_visited:
-            prev_visit_count = min(day_index, 3)
+        place_is_cultural = place_category in ['religious', 'history', 'culture']
+        mood_is_cultural = user_mood.upper() in ['SPIRITUAL', 'HISTORICAL']
+        cultural_match = 1.0 if place_is_cultural and mood_is_cultural else 0.0
         
-        # Opening hours match (0-1)
-        opening_hours_match = self._calculate_opening_hours_match(place, time_of_day)
+        # Build feature vector in EXACT order from training
+        features = np.array([
+            user_mood_id,
+            user_budget_id,
+            user_pace_id,
+            user_interests_count,
+            place_category_id,
+            place_rating,
+            place_budget_id,
+            place_visit_minutes,
+            place_tags_count,
+            place_ideal_start,
+            place_ideal_end,
+            trip_day,
+            trip_total_days_norm,
+            distance_km_norm,
+            user_interests_match,
+            budget_match,
+            cultural_match,
+        ], dtype=np.float32)
         
-        return RankingFeatures(
-            mood_id=mood_code,
-            budget_level=budget_code,
-            interest_tags=tag_match_vec,
-            category_id=category_code,
-            place_tags=place_tag_vec,
-            rating=place.get('rating', 3.5),
-            popularity_score=place.get('popularity_score', 50),
-            price_level=place.get('price_level', 2),
-            distance_from_hotel=distance,
-            day_index=day_index,
-            time_of_day=time_code,
-            hours_available=8.0,
-            previously_visited_count=prev_visit_count,
-            is_outdoor=place.get('is_outdoor', False),
-            is_cultural=place.get('is_cultural', False),
-            opening_hours_match=opening_hours_match
-        )
+        return features
     
-    def _get_ml_score(self, features: RankingFeatures) -> Tuple[float, float]:
-        """Get score from ML model"""
+    def _get_ml_score(self, features: np.ndarray) -> Tuple[float, float]:
+        """Get score from trained ML model"""
         try:
-            if not self.model:
+            if self.model is None or self.scaler is None:
                 raise ValueError("Model not loaded")
             
-            feature_array = features.to_array()
-            score = self.model.predict(feature_array.reshape(1, -1))[0]
+            # Normalize features
+            features_scaled = self.scaler.transform(features.reshape(1, -1))
+            
+            # Get prediction
+            score = self.model.predict(features_scaled)[0]
+            
+            # Sigmoid transform to [0, 1]
             score = 1.0 / (1.0 + np.exp(-score))
+            
+            # Confidence based on distance from 0.5
             confidence = min(abs(score - 0.5) * 2, 0.95)
             
             return float(score), float(confidence)
         except Exception as e:
             logger.warning(f"ML scoring failed: {e}. Using fallback.")
-            return self._get_fallback_score(features)
+            return self._get_fallback_score_from_array(features)
     
     def _get_fallback_score(self, features: RankingFeatures) -> Tuple[float, float]:
         """Fallback rule-based scoring when ML model unavailable."""
@@ -323,6 +453,36 @@ class LearningToRankService:
         
         return score, confidence
     
+    def _get_fallback_score_from_array(self, features: np.ndarray) -> Tuple[float, float]:
+        """Fallback scoring from feature array"""
+        # Use training pipeline order:
+        # [mood_id, budget_id, pace_id, interests_count, category_id, rating, 
+        #  budget_id, visit_minutes, tags_count, ideal_start, ideal_end, 
+        #  trip_day, trip_days, distance, interests_match, budget_match, cultural_match]
+        
+        score = 0.0
+        
+        # Rating (normalized 0-1, position 5)
+        score += features[5] * 0.30
+        
+        # User interests match (position 14)
+        score += features[14] * 0.25
+        
+        # Budget match (position 15)
+        score += features[15] * 0.20
+        
+        # Cultural match (position 16)
+        score += features[16] * 0.15
+        
+        # Distance penalty (position 13, normalized)
+        distance_penalty = min(features[13], 0.2)
+        score -= distance_penalty * 0.1
+        
+        score = max(0.0, min(score, 1.0))
+        confidence = 0.5
+        
+        return score, confidence
+    
     @staticmethod
     def _haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Calculate distance in km between two lat/lon points"""
@@ -340,85 +500,3 @@ class LearningToRankService:
         c = 2 * atan2(sqrt(a), sqrt(1-a))
         
         return R * c
-    
-    @staticmethod
-    def _calculate_opening_hours_match(place: Dict, time_of_day: str) -> float:
-        """Estimate if place should be open during given time"""
-        opening_hours = place.get('opening_hours', '')
-        
-        if not opening_hours:
-            return 0.8
-        
-        if 'closed' in opening_hours.lower():
-            return 0.0
-        
-        if 'museum' in place.get('category', '').lower():
-            return 0.7 if time_of_day == 'morning' or time_of_day == 'afternoon' else 0.3
-        
-        if 'restaurant' in place.get('category', '').lower():
-            if time_of_day == 'morning':
-                return 0.3
-            elif time_of_day == 'afternoon':
-                return 0.8
-            else:
-                return 0.9
-        
-        if place.get('is_outdoor'):
-            return 1.0 if time_of_day != 'evening' else 0.5
-        
-        return 0.8
-    
-    def hybrid_score(self, ml_score: float, fallback_score: float, confidence: float) -> float:
-        """Blend ML score with fallback score based on confidence."""
-        if confidence < 0.4:
-            return 0.3 * ml_score + 0.7 * fallback_score
-        elif confidence < 0.6:
-            return 0.5 * ml_score + 0.5 * fallback_score
-        else:
-            return 0.8 * ml_score + 0.2 * fallback_score
-
-
-class RankingModelTrainer:
-    """Utility class for training LightGBM ranking models offline."""
-    
-    @staticmethod
-    def train_from_synthetic_data(
-        synthetic_samples: List[Dict],
-        output_path: str
-    ) -> Dict:
-        """Train model from synthetic training data."""
-        if not LIGHTGBM_AVAILABLE:
-            logger.error("LightGBM not available for training")
-            return {'status': 'error', 'message': 'LightGBM not installed'}
-        
-        X = np.array([s['features'].to_array() for s in synthetic_samples])
-        y = np.array([s['label'] for s in synthetic_samples])
-        
-        logger.info(f"Training LightGBM with {len(X)} samples")
-        
-        train_data = lgb.Dataset(X, label=y)
-        
-        params = {
-            'goal': 'train',
-            'num_leaves': 31,
-            'learning_rate': 0.05,
-            'feature_fraction': 0.8,
-            'bagging_fraction': 0.8,
-            'verbose': -1,
-        }
-        
-        model = lgb.train(
-            params,
-            train_data,
-            num_boost_round=100,
-        )
-        
-        model.save_model(output_path)
-        logger.info(f"Model saved to {output_path}")
-        
-        return {
-            'status': 'success',
-            'model_path': output_path,
-            'num_samples': len(X),
-            'num_features': X.shape[1]
-        }

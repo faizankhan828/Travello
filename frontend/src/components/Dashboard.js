@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { hotelAPI, bookingAPI } from '../services/api';
+import { hotelAPI, bookingAPI, authAPI } from '../services/api';
 import RecommendationWidget from './RecommendationWidget';
 import NotificationCenter from './NotificationCenter';
 import WeatherWidget from './WeatherWidget';
@@ -1207,15 +1207,19 @@ const AccountSettingsModal = ({ user, onClose, onUpdate }) => {
       return;
     }
 
-    if (passwordData.new_password.length < 6) {
-      setMessage({ type: 'error', text: 'Password must be at least 6 characters' });
+    if (passwordData.new_password.length < 8) {
+      setMessage({ type: 'error', text: 'Password must be at least 8 characters' });
       return;
     }
 
     setLoading(true);
     setMessage(null);
     try {
-      // Here you would typically make an API call to change the password
+      await authAPI.changePassword({
+        old_password: passwordData.old_password,
+        new_password: passwordData.new_password,
+        confirm_password: passwordData.confirm_password,
+      });
       setMessage({ type: 'success', text: 'Password changed successfully!' });
       setPasswordData({ old_password: '', new_password: '', confirm_password: '' });
       // Delay hiding the form so user can see the success message
@@ -1224,7 +1228,7 @@ const AccountSettingsModal = ({ user, onClose, onUpdate }) => {
         setTimeout(() => setMessage(null), 500);
       }, 2000);
     } catch (error) {
-      setMessage({ type: 'error', text: error?.response?.data?.message || 'Failed to change password' });
+      setMessage({ type: 'error', text: error?.message || error?.data?.error || 'Failed to change password' });
     } finally {
       setLoading(false);
     }

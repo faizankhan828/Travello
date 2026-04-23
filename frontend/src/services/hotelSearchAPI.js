@@ -155,6 +155,20 @@ export const searchLahoreHotels = async (params = {}) => {
       };
 
       const address = hotel.location || hotel.distance || 'Lahore, Pakistan';
+      const parsedAvailableRooms = Number(hotel.available_rooms ?? hotel.rooms_left ?? 0);
+      const safeAvailableRooms = Number.isFinite(parsedAvailableRooms) && parsedAvailableRooms >= 0
+        ? parsedAvailableRooms
+        : 0;
+      const parsedTotalRooms = Number(
+        hotel.total_rooms
+        ?? hotel.rooms_total
+        ?? hotel.inventory_total
+        ?? hotel.room_types_count
+        ?? safeAvailableRooms
+      );
+      const safeTotalRooms = Number.isFinite(parsedTotalRooms) && parsedTotalRooms >= 0
+        ? Math.max(parsedTotalRooms, safeAvailableRooms)
+        : safeAvailableRooms;
 
       return {
         id: index + 1,
@@ -170,8 +184,8 @@ export const searchLahoreHotels = async (params = {}) => {
         quad_bed_price_per_day: Math.round(pricePerNight * 1.5),
         family_room_price_per_day: Math.round(pricePerNight * 1.8),
         price: pricePerNight,
-        total_rooms: 50,
-        available_rooms: hotel.rooms_left || 10,
+        total_rooms: safeTotalRooms,
+        available_rooms: safeAvailableRooms,
         rating: ratingValue,
         reviewCount: reviewCount,
         image: hotel.image_url || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500',

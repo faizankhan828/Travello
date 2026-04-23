@@ -392,8 +392,8 @@ class RoomTypeDetailSerializer(serializers.ModelSerializer):
         ]
     
     def get_available_rooms(self, obj):
-        """Get currently available rooms"""
-        return obj.get_available_rooms()
+        """Get snapshot availability used in admin displays."""
+        return obj.available_rooms
     
     def get_booked_rooms(self, obj):
         """Get list of booked rooms with checkout dates"""
@@ -491,34 +491,36 @@ class AvailabilityCheckSerializer(serializers.Serializer):
         check_in = self.validated_data['check_in']
         check_out = self.validated_data['check_out']
         rooms_needed = self.validated_data.get('rooms_needed', 1)
+        nights = (check_out - check_in).days
         
         # If specific room type requested
         if 'room_type_obj' in self.validated_data:
             room_type = self.validated_data['room_type_obj']
             available = room_type.get_available_rooms(check_in, check_out)
-            nights = (check_out - check_in).days
             
+            # Return in consistent format with room_types array (even for single room)
             return {
                 'hotel_id': hotel.id,
                 'hotel_name': hotel.name,
                 'check_in': check_in,
                 'check_out': check_out,
                 'nights': nights,
-                'room_type': {
-                    'id': room_type.id,
-                    'type': room_type.type,
-                    'type_display': room_type.get_type_display(),
-                    'price_per_night': float(room_type.price_per_night),
-                    'total_rooms': room_type.total_rooms,
-                    'available_rooms': available,
-                    'is_available': available >= rooms_needed,
-                    'total_price': float(room_type.price_per_night * nights * rooms_needed),
-                }
+                'room_types': [
+                    {
+                        'id': room_type.id,
+                        'type': room_type.type,
+                        'type_display': room_type.get_type_display(),
+                        'price_per_night': float(room_type.price_per_night),
+                        'total_rooms': room_type.total_rooms,
+                        'available_rooms': available,
+                        'is_available': available >= rooms_needed,
+                        'total_price': float(room_type.price_per_night * nights * rooms_needed),
+                    }
+                ]
             }
         
         # Otherwise, return availability for all room types
         availability_data = RoomType.check_availability_for_hotel(hotel, check_in, check_out)
-        nights = (check_out - check_in).days
         
         # Format the response
         room_types = []
@@ -540,7 +542,6 @@ class AvailabilityCheckSerializer(serializers.Serializer):
             'check_in': check_in,
             'check_out': check_out,
             'nights': nights,
-            'rooms_needed': rooms_needed,
             'room_types': room_types,
             'has_availability': any(rt['is_available'] for rt in room_types),
         }

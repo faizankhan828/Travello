@@ -28,6 +28,7 @@ urlpatterns = [
     path('request-otp/', views.request_otp, name='request_otp'),
     path('verify-password-reset-otp-only/', views.verify_password_reset_otp_only, name='verify_password_reset_otp_only'),
     path('verify-password-reset-otp/', views.verify_password_reset_otp, name='verify_password_reset_otp'),
+    path('change-password/', views.change_password, name='change_password'),
     
     # ============================================
     # NOTIFICATION CENTRE API
