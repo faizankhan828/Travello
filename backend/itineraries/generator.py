@@ -145,6 +145,57 @@ DEFAULT_LAHORE_PLACES = [
     dict(name='Fujiyama (MM Alam)', category='Food', tags=['food', 'foodie', 'modern'], minutes=90, budget='LUXURY', lat=31.5210, lon=74.3514, rating=4.2, start=12, end=23),
     dict(name='Shaheen Shinwari', category='Food', tags=['food', 'foodie', 'culture'], minutes=90, budget='LOW', lat=31.5420, lon=74.3120, rating=4.3, start=12, end=23),
 
+    # ── Additional Famous Food Spots ──────────────────────────────────────────
+    dict(name='Waqas Biryani', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5630, lon=74.3250, rating=4.5, start=12, end=23),
+    dict(name='Taj Mahal Halwa Puri', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5798, lon=74.3212, rating=4.6, start=6, end=12),
+    dict(name='Bismillah Paye (Lakshmi Chowk)', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5668, lon=74.3241, rating=4.4, start=6, end=14),
+    dict(name='Waheed\'s Kabab House', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5672, lon=74.3243, rating=4.4, start=12, end=23),
+    dict(name='Chaye Khana (Tollinton)', category='Food', tags=['food', 'foodie', 'modern', 'relaxing', 'romantic'], minutes=90, budget='MEDIUM', lat=31.5584, lon=74.3252, rating=4.5, start=10, end=23),
+    dict(name='Pak Tea House', category='Food', tags=['food', 'foodie', 'culture', 'history', 'historical'], minutes=90, budget='LOW', lat=31.5617, lon=74.3171, rating=4.4, start=10, end=22),
+    dict(name='Usmania Restaurant', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5580, lon=74.3219, rating=4.3, start=12, end=23),
+    dict(name='Sardar Ji Daal Chawal', category='Food', tags=['food', 'foodie', 'culture'], minutes=45, budget='LOW', lat=31.5623, lon=74.3100, rating=4.2, start=12, end=22),
+    dict(name='Saloos Biryani', category='Food', tags=['food', 'foodie', 'culture'], minutes=45, budget='LOW', lat=31.5410, lon=74.3140, rating=4.2, start=12, end=23),
+    dict(name='New Khan Barbeque (MM Alam)', category='Food', tags=['food', 'foodie', 'modern'], minutes=90, budget='MEDIUM', lat=31.5210, lon=74.3507, rating=4.3, start=18, end=23),
+    dict(name='Cuckoo\'s Den (Fort Road)', category='Food', tags=['food', 'foodie', 'culture', 'romantic'], minutes=90, budget='MEDIUM', lat=31.5869, lon=74.3118, rating=4.5, start=18, end=23),
+    dict(name='Lahori Nashta Corner', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5780, lon=74.3200, rating=4.3, start=6, end=12),
+    dict(name='Iqbal Moti Karahi', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5671, lon=74.3238, rating=4.4, start=18, end=2),
+    dict(name='Al-Kabeer Restaurant', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5580, lon=74.3155, rating=4.2, start=12, end=23),
+    dict(name='Burger Lab (DHA)', category='Food', tags=['food', 'foodie', 'modern', 'fun'], minutes=60, budget='MEDIUM', lat=31.4773, lon=74.4020, rating=4.4, start=12, end=23),
+    dict(name='Jammin\' Java', category='Food', tags=['food', 'foodie', 'modern', 'relaxing', 'romantic'], minutes=90, budget='MEDIUM', lat=31.5212, lon=74.3505, rating=4.3, start=10, end=23),
+    dict(name='Lasani Charsi Tikka', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5190, lon=74.3490, rating=4.3, start=18, end=2),
+    dict(name='Nando\'s (MM Alam Road)', category='Food', tags=['food', 'foodie', 'modern'], minutes=60, budget='MEDIUM', lat=31.5208, lon=74.3512, rating=4.1, start=12, end=23),
+    dict(name='The Pantry (Gulberg)', category='Food', tags=['food', 'foodie', 'modern', 'romantic', 'relaxing'], minutes=90, budget='MEDIUM', lat=31.5190, lon=74.3527, rating=4.4, start=10, end=22),
+    dict(name='Dilpasand Bakers (Anarkali)', category='Food', tags=['food', 'foodie', 'culture'], minutes=30, budget='LOW', lat=31.5630, lon=74.3103, rating=4.3, start=8, end=22),
+    dict(name='Muhammadi Halwa Puri (Ravi Road)', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5900, lon=74.3380, rating=4.4, start=6, end=12),
+    dict(name='Karim\'s Restaurant (Anarkali)', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5629, lon=74.3102, rating=4.2, start=12, end=23),
+    dict(name='Shezan Bakery (Anarkali)', category='Food', tags=['food', 'foodie', 'culture'], minutes=30, budget='LOW', lat=31.5627, lon=74.3095, rating=4.2, start=9, end=22),
+    dict(name='Ali Nihari (Bhati Gate)', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.5780, lon=74.3225, rating=4.4, start=6, end=12),
+    dict(name='Zakir Bong (Township)', category='Food', tags=['food', 'foodie', 'culture'], minutes=60, budget='LOW', lat=31.4478, lon=74.2978, rating=4.3, start=18, end=2),
+
+    # ── Additional Cultural & Historic Sites ──────────────────────────────────
+    dict(name='Lahore Press Club', category='Culture', tags=['culture', 'history', 'historical'], minutes=45, budget='LOW', lat=31.5605, lon=74.3186, rating=4.0, start=9, end=17),
+    dict(name='Mayo School of Arts', category='Culture', tags=['culture', 'history', 'historical'], minutes=60, budget='LOW', lat=31.5600, lon=74.3175, rating=4.2, start=9, end=16),
+    dict(name='National College of Arts (NCA)', category='Culture', tags=['culture', 'history', 'historical', 'modern'], minutes=60, budget='LOW', lat=31.5598, lon=74.3178, rating=4.4, start=9, end=16),
+    dict(name='Tollinton Market (Heritage)', category='Culture', tags=['culture', 'history', 'historical', 'shopping'], minutes=90, budget='LOW', lat=31.5578, lon=74.3248, rating=4.2, start=10, end=18),
+    dict(name='Lahore Central Museum (Partition Museum)', category='Culture', tags=['culture', 'history', 'historical'], minutes=90, budget='LOW', lat=31.5613, lon=74.3152, rating=4.5, start=10, end=17),
+    dict(name='Nasser Bagh Heritage Area', category='Nature', tags=['nature', 'history', 'historical', 'relaxing'], minutes=60, budget='LOW', lat=31.5590, lon=74.3240, rating=4.1, start=7, end=20),
+    dict(name='Rang Mahal Area (Old City)', category='Culture', tags=['culture', 'history', 'historical', 'shopping'], minutes=90, budget='LOW', lat=31.5800, lon=74.3190, rating=4.3, start=10, end=22),
+    dict(name='Circular Road (Heritage Walk)', category='Culture', tags=['culture', 'history', 'historical'], minutes=90, budget='LOW', lat=31.5810, lon=74.3170, rating=4.2, start=9, end=18),
+    dict(name='Kashmiri Bazaar', category='Shopping', tags=['shopping', 'culture', 'history', 'food', 'foodie'], minutes=90, budget='LOW', lat=31.5830, lon=74.3190, rating=4.1, start=10, end=20),
+    dict(name='Yakki Gate Area', category='Culture', tags=['culture', 'history', 'historical'], minutes=60, budget='LOW', lat=31.5795, lon=74.3208, rating=4.0, start=9, end=18),
+
+    # ── Parks, Modern & Family ────────────────────────────────────────────────
+    dict(name='Lake City Raya Golf Club', category='Modern', tags=['modern', 'relaxing', 'fun'], minutes=180, budget='LUXURY', lat=31.4170, lon=74.1900, rating=4.3, start=7, end=18),
+    dict(name='Packages Lake (DHA)', category='Nature', tags=['nature', 'relaxing', 'romantic', 'family'], minutes=120, budget='LOW', lat=31.4695, lon=74.3555, rating=4.4, start=9, end=20),
+    dict(name='Chakar Park (Johar Town)', category='Nature', tags=['nature', 'relaxing', 'family'], minutes=60, budget='LOW', lat=31.4678, lon=74.2650, rating=4.0, start=7, end=21),
+    dict(name='Fortress Square Mall', category='Shopping', tags=['shopping', 'modern', 'food', 'entertainment', 'fun'], minutes=150, budget='MEDIUM', lat=31.5320, lon=74.3662, rating=4.3, start=12, end=23),
+    dict(name='Airtel Lahore Arena', category='Modern', tags=['modern', 'fun', 'entertainment'], minutes=120, budget='MEDIUM', lat=31.4658, lon=74.3640, rating=4.2, start=10, end=23),
+    dict(name='Desert Storm (Off-Road)', category='Modern', tags=['fun', 'entertainment', 'modern'], minutes=180, budget='MEDIUM', lat=31.3800, lon=74.1900, rating=4.1, start=9, end=18),
+    dict(name='Sparkletts (Indoor Play)', category='Modern', tags=['fun', 'entertainment', 'family'], minutes=150, budget='MEDIUM', lat=31.4680, lon=74.2652, rating=4.2, start=10, end=22),
+    dict(name='Oxfam (Liberty Art District)', category='Culture', tags=['culture', 'modern', 'shopping'], minutes=60, budget='LOW', lat=31.5115, lon=74.3448, rating=4.0, start=10, end=22),
+    dict(name='Avari Towers Cafe', category='Food', tags=['food', 'foodie', 'modern', 'romantic', 'relaxing'], minutes=90, budget='LUXURY', lat=31.5455, lon=74.3370, rating=4.4, start=10, end=23),
+    dict(name='Pearl Continental Hotel Lounge', category='Food', tags=['food', 'foodie', 'modern', 'romantic'], minutes=90, budget='LUXURY', lat=31.5498, lon=74.3260, rating=4.5, start=10, end=23),
+
     # ==================== SHOPPING AREAS (IDs 66-80, 121-128) ====================
     dict(name='Liberty Market', category='Shopping', tags=['shopping', 'modern', 'food', 'foodie'], minutes=120, budget='MEDIUM', lat=31.511280, lon=74.345008, rating=4.4, start=12, end=23),
     dict(name='Anarkali Bazaar', category='Shopping', tags=['shopping', 'culture', 'food', 'foodie'], minutes=120, budget='LOW', lat=31.562481, lon=74.309333, rating=4.4, start=11, end=22),
@@ -193,13 +244,46 @@ DEFAULT_LAHORE_PLACES = [
 ]
 
 
+# ── Labels of procedurally-generated (fake) place archetypes to purge from DB ──
+_FAKE_ARCHETYPE_LABELS = [
+    'Heritage Walk - ',
+    'Craft Bazaar - ',
+    'Street Food Corner - ',
+    'Family Activity Park - ',
+    'Cultural Center - ',
+    'Urban View Point - ',
+    'Shrine & Courtyard - ',
+]
+
+
+def _build_extended_lahore_places():
+    """Return only the curated, real Lahore places. No generated/fake entries."""
+    return list(DEFAULT_LAHORE_PLACES)
+
+
 def ensure_lahore_places_seeded():
-    """Seed default Lahore places. Updates count if new places were added."""
-    existing_count = Place.objects.filter(city='Lahore').count()
-    if existing_count >= len(DEFAULT_LAHORE_PLACES):
-        return
+    """
+    Seed curated Lahore places.
+    - Purges any old procedurally-generated (numbered) fake places first.
+    - Then upserts the real curated list.
+    """
+    from django.db.models import Q
+
+    # Build a Q filter for all fake archetype name prefixes
+    fake_q = Q()
+    for label in _FAKE_ARCHETYPE_LABELS:
+        fake_q |= Q(name__startswith=label)
+
+    purged = Place.objects.filter(city='Lahore').filter(fake_q).delete()
+    if purged[0]:
+        import logging
+        logging.getLogger(__name__).info(
+            f"[seed] Purged {purged[0]} procedurally-generated fake places from DB."
+        )
+
+    seed_places = _build_extended_lahore_places()
     objs = []
-    for p in DEFAULT_LAHORE_PLACES:
+    for p in seed_places:
         objs.append(
             Place(
                 city='Lahore',
@@ -293,11 +377,26 @@ def _pick_nearby(seed_place: Place, candidates, k):
     return [p for _, p in scored[:k]]
 
 
+def _slot_for_hour(start_hour: int) -> str:
+    """Return time-of-day slot based on the place's ideal opening hour."""
+    if start_hour < 12:
+        return 'morning'
+    elif start_hour < 17:
+        return 'afternoon'
+    return 'evening'
+
+
 def _build_day_items(day_places, per_day):
-    """Convert a list of Place objects into day item dicts with time slots."""
+    """Convert a list of Place objects into day item dicts with time slots.
+
+    Places are sorted chronologically by ideal_start_hour so they appear in
+    the correct morning → afternoon → evening order regardless of how they
+    were selected.
+    """
+    sorted_places = sorted(day_places, key=lambda p: getattr(p, 'ideal_start_hour', 9))
     items = []
-    for idx, p in enumerate(day_places):
-        slot = 'morning' if idx == 0 else ('afternoon' if idx < max(2, per_day - 1) else 'evening')
+    for p in sorted_places:
+        slot = _slot_for_hour(getattr(p, 'ideal_start_hour', 9))
         items.append({
             'type': 'place',
             'slot': slot,

@@ -9,6 +9,7 @@ This service maintains 100% backward compatibility with existing API contracts.
 
 import logging
 import json
+from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import asdict
 from datetime import datetime
@@ -60,14 +61,8 @@ class AIItineraryService:
         
         # Initialize ranker with trained model if available
         if ranker_service is None:
-            import os
             from django.conf import settings
-            # Try to load trained model
-            model_path = os.path.join(
-                settings.BASE_DIR, 
-                'ml_models', 
-                'itinerary_ranker.pkl'
-            )
+            model_path = self._resolve_ranker_model_path(settings)
             self.ranker_service = LearningToRankService(model_path=model_path)
         else:
             self.ranker_service = ranker_service
@@ -82,6 +77,49 @@ class AIItineraryService:
         
         # Metrics tracking
         self.last_generation_log = None
+
+    def _resolve_ranker_model_path(self, settings) -> str:
+        """
+        Resolve itinerary ranker model path across known training/output locations.
+
+        Picks the most recently modified existing model so fresh training is used.
+        """
+        base_dir = Path(settings.BASE_DIR)
+
+        candidates = []
+        configured_path = getattr(settings, 'AI_ML_RANKER_MODEL_PATH', None)
+        if configured_path:
+            configured = Path(configured_path)
+            if not configured.is_absolute():
+                configured = (base_dir / configured).resolve()
+            candidates.append(configured)
+
+        # Common model paths in this repository.
+        candidates.extend([
+            base_dir / 'ml_models' / 'itinerary_ranker.pkl',
+            base_dir.parent / 'ml_models' / 'itinerary_ranker.pkl',
+            base_dir.parent / 'backend' / 'ml_models' / 'itinerary_ranker.pkl',
+        ])
+
+        # Preserve order while deduplicating.
+        seen = set()
+        deduped_candidates = []
+        for candidate in candidates:
+            candidate_str = str(candidate)
+            if candidate_str not in seen:
+                seen.add(candidate_str)
+                deduped_candidates.append(candidate)
+
+        existing = [p for p in deduped_candidates if p.exists()]
+        if existing:
+            selected = max(existing, key=lambda p: p.stat().st_mtime)
+            logger.info(f"Using itinerary ranker model: {selected}")
+            return str(selected)
+
+        # Fallback to primary default location; ranker service handles missing file.
+        default_path = deduped_candidates[0] if deduped_candidates else (base_dir / 'ml_models' / 'itinerary_ranker.pkl')
+        logger.warning(f"No itinerary ranker model found. Expected path: {default_path}")
+        return str(default_path)
     
     def generate_itinerary_ai(
         self,
@@ -359,8 +397,12 @@ class AIItineraryService:
         try:
             from .models import Place
             
-            # Query all places (in production, would filter by city/interests)
-            places = Place.objects.all().values()
+            # Filter by city when available so the ranker does not mix destinations.
+            query = Place.objects.all()
+            if city:
+                query = query.filter(city__iexact=city)
+
+            places = query.values()
             return list(places)
         except Exception as e:
             logger.error(f"Failed to fetch places database: {e}")
@@ -379,14 +421,31 @@ class AIItineraryService:
         candidates = [p for p in places_database if p.get('id') not in previously_visited]
         
         # Filter: budget compatibility
-        budget_levels = {'low': [1], 'medium': [1, 2], 'high': [2, 3], 'luxury': [3, 4]}
-        allowed_price_levels = budget_levels.get(budget.lower(), [1, 2])
-        candidates = [p for p in candidates if p.get('price_level', 2) in allowed_price_levels]
+        # User budget is an upper bound, not an exact place tier.
+        # Luxury trips should still be allowed to visit lower-budget places.
+        budget_levels = {'low': [1], 'medium': [1, 2], 'high': [1, 2, 3], 'luxury': [1, 2, 3]}
+        allowed_price_levels = budget_levels.get((budget or '').lower(), [1, 2, 3, 4])
+
+        budget_map = {'LOW': 1, 'MEDIUM': 2, 'LUXURY': 3}
+
+        def _place_price_level(place: Dict) -> int:
+            price_level = place.get('price_level')
+            if price_level is not None:
+                try:
+                    return int(price_level)
+                except (TypeError, ValueError):
+                    pass
+            return budget_map.get(str(place.get('budget_level', 'MEDIUM')).upper(), 2)
+
+        candidates = [p for p in candidates if _place_price_level(p) in allowed_price_levels]
         
         # Sort by distance/rating and return top N
         candidates = sorted(
             candidates,
-            key=lambda p: (p.get('rating', 0), -p.get('popularity_score', 0)),
+            key=lambda p: (
+                p.get('average_rating', p.get('rating', 0)) or 0,
+                -(p.get('popularity_score', 0) or 0)
+            ),
             reverse=True
         )[:max_candidates]
         
@@ -419,7 +478,7 @@ class AIItineraryService:
     def _log_generation_to_database(self, generation_log: Dict, itinerary: Dict):
         """Log generation event for monitoring and retraining"""
         try:
-            from .models import AIGenerationLog
+            from .ai_models import AIGenerationLog
             
             # Store log in database
             log_entry = AIGenerationLog(

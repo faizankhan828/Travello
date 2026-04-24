@@ -136,7 +136,10 @@ class LearningToRankService:
         if HF_AVAILABLE and create_hf_ranker:
             try:
                 self.hf_ranker = create_hf_ranker()
-                logger.info("HuggingFace ranker initialized for semantic scoring")
+                if self.hf_ranker is not None:
+                    logger.info("HuggingFace ranker initialized for semantic scoring")
+                else:
+                    logger.warning("HuggingFace ranker unavailable at runtime. Proceeding with LightGBM + fallback scoring.")
             except Exception as e:
                 logger.warning(f"Failed to initialize HF ranker: {e}")
         

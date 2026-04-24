@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 from django.db import transaction
 from django.conf import settings
@@ -14,6 +15,7 @@ from .generator import (
     _normalize_interests, _budget_rank, _score_place, _pick_nearby, _pace_target,
     regenerate_day, regenerate_full_trip, _get_mood_tags, _build_day_items,
 )
+from .ai_service import AIItineraryService
 from .models import Itinerary, Place
 from .serializers import ItinerarySerializer, ItineraryGenerateSerializer, PlaceSerializer
 
@@ -33,10 +35,149 @@ class PlaceListView(APIView):
 class ItineraryGenerateView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def _slot_for_index(index: int, total: int) -> str:
+        if index == 0:
+            return 'morning'
+        if index < max(2, total - 1):
+            return 'afternoon'
+        return 'evening'
+
+    @classmethod
+    def _normalize_ai_days(cls, ai_itinerary: dict, city: str, start_date):
+        """
+        Convert AI response days to the existing frontend/backend contract:
+        days[].items where each item has place_* fields.
+        """
+        days = ai_itinerary.get('days', []) if isinstance(ai_itinerary, dict) else []
+
+        # Collect place IDs up front for enrichment from DB.
+        place_ids = []
+        for day in days:
+            for place in (day.get('places') or []):
+                pid = place.get('id')
+                if pid is not None:
+                    place_ids.append(pid)
+
+        place_map = {p.id: p for p in Place.objects.filter(id__in=place_ids, city=city)}
+
+        normalized_days = []
+        for day_idx, day in enumerate(days):
+            day_date = day.get('date')
+            if day_date is None and start_date is not None:
+                day_date = (start_date + timedelta(days=day_idx)).isoformat()
+
+            # If AI already returned items in expected shape, keep them.
+            existing_items = day.get('items') or []
+            if existing_items:
+                items = existing_items
+            else:
+                places = day.get('places') or []
+                items = []
+                total = len(places)
+                for idx, place in enumerate(places):
+                    pid = place.get('id')
+                    db_place = place_map.get(pid)
+                    items.append({
+                        'type': 'place',
+                        'slot': cls._slot_for_index(idx, total),
+                        'place_id': pid,
+                        'name': place.get('name') or (db_place.name if db_place else 'Unknown place'),
+                        'category': place.get('category') or (db_place.category if db_place else ''),
+                        'estimated_visit_minutes': (
+                            place.get('estimated_visit_minutes')
+                            or (db_place.estimated_visit_minutes if db_place else 90)
+                        ),
+                        'budget_level': place.get('budget_level') or (db_place.budget_level if db_place else ''),
+                        'latitude': place.get('latitude') if place.get('latitude') is not None else (db_place.latitude if db_place else None),
+                        'longitude': place.get('longitude') if place.get('longitude') is not None else (db_place.longitude if db_place else None),
+                        'average_rating': (
+                            place.get('average_rating')
+                            if place.get('average_rating') is not None
+                            else (db_place.average_rating if db_place else None)
+                        ),
+                        'tags': place.get('tags') or (db_place.tags if db_place else []),
+                        'ideal_hours': {
+                            'start': place.get('ideal_start_hour') if place.get('ideal_start_hour') is not None else (db_place.ideal_start_hour if db_place else None),
+                            'end': place.get('ideal_end_hour') if place.get('ideal_end_hour') is not None else (db_place.ideal_end_hour if db_place else None),
+                        },
+                    })
+
+            normalized_days.append({
+                'date': day_date,
+                'title': day.get('title') or f"Day {day_idx + 1} - {city}",
+                'items': items,
+            })
+
+        return normalized_days
+
     def post(self, request):
         serializer = ItineraryGenerateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+
+        # AI-first path for itinerary generation (fallback to existing generator on any failure).
+        use_ai = bool(getattr(settings, 'USE_AI_ITINERARY_PLANNER', True))
+        if use_ai:
+            try:
+                ai_service = AIItineraryService(
+                    enable_emotion_detection=bool(getattr(settings, 'USE_EMOTION_DETECTION', True)),
+                    enable_ml_ranking=bool(getattr(settings, 'USE_ML_RANKING', True)),
+                    enable_llm_enhancement=bool(getattr(settings, 'USE_LLM_ENHANCEMENT', False)),
+                    fallback_confidence_threshold=float(getattr(settings, 'AI_CONFIDENCE_THRESHOLD', 0.6)),
+                )
+
+                trip_days = max(1, (data['end_date'] - data['start_date']).days)
+                trip_params = {
+                    'mood': data.get('mood', ''),
+                    'interests': data.get('interests', []),
+                    'budget': str(data.get('budget_level', Itinerary.Budget.MEDIUM)).lower(),
+                    'pace': data.get('pace', Itinerary.Pace.BALANCED),
+                    'num_days': trip_days,
+                    'trip_start_date': data['start_date'],
+                    'city': data.get('city', 'Lahore'),
+                    'travelers': data.get('travelers', 1),
+                }
+
+                ai_itinerary = ai_service.generate_itinerary_ai(
+                    user_id=str(request.user.id),
+                    trip_params=trip_params,
+                    user=request.user,
+                    preferences_text=str(request.data.get('preferences_text', '')),
+                )
+
+                normalized_days = self._normalize_ai_days(
+                    ai_itinerary=ai_itinerary,
+                    city=data.get('city', 'Lahore'),
+                    start_date=data['start_date'],
+                )
+
+                itinerary = Itinerary.objects.create(
+                    user=request.user,
+                    city=data.get('city', 'Lahore'),
+                    start_date=data['start_date'],
+                    end_date=data['end_date'],
+                    travelers=max(1, int(data.get('travelers', 1) or 1)),
+                    budget_level=data.get('budget_level', Itinerary.Budget.MEDIUM),
+                    interests=_normalize_interests(data.get('interests', [])),
+                    pace=data.get('pace', Itinerary.Pace.BALANCED),
+                    mood=data.get('mood', ''),
+                    days=normalized_days,
+                    saved=True,
+                )
+
+                try:
+                    from authentication.models import Notification
+                    Notification.itinerary_ready(request.user, data.get('city', 'Lahore'))
+                except Exception:
+                    pass
+
+                return Response(
+                    {'success': True, 'itinerary': ItinerarySerializer(itinerary).data, 'ai_powered': True},
+                    status=status.HTTP_201_CREATED,
+                )
+            except Exception as exc:
+                logger.warning(f"AI itinerary generation failed, falling back to rule-based: {exc}")
 
         itinerary = generate_itinerary(
             user=request.user,

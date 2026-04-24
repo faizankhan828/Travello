@@ -133,3 +133,6 @@ class JournalEntry(models.Model):
     def __str__(self):
         return f"Journal: {self.title} ({self.date})"
 
+
+from .ai_models import AIGenerationLog, AIModelVersion, AIUserFeedback
+

@@ -15,14 +15,33 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-# Try importing sentence transformers
+# Cache encoder instances so the heavy transformer model is loaded once per process.
+_HF_RANKER_CACHE = {}
+
+# Try importing sentence-transformers first
 try:
     from sentence_transformers import SentenceTransformer
-    HF_AVAILABLE = True
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
-    HF_AVAILABLE = False
-    logger.warning("sentence-transformers not available. HF ranking disabled.")
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
     SentenceTransformer = None
+
+# Fallback: plain transformers encoder (works without sentence-transformers package)
+try:
+    import torch
+    from transformers import AutoTokenizer, AutoModel
+    TRANSFORMERS_ENCODER_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_ENCODER_AVAILABLE = False
+    torch = None
+    AutoTokenizer = None
+    AutoModel = None
+
+HF_AVAILABLE = SENTENCE_TRANSFORMERS_AVAILABLE or TRANSFORMERS_ENCODER_AVAILABLE
+if not HF_AVAILABLE:
+    logger.warning("Neither sentence-transformers nor transformers encoder is available. HF ranking disabled.")
+elif not SENTENCE_TRANSFORMERS_AVAILABLE:
+    logger.warning("sentence-transformers not available. Using transformers encoder fallback for HF ranking.")
 
 
 @dataclass
@@ -51,6 +70,7 @@ class HFPlaceRanker:
     
     # Model configuration
     MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+    FALLBACK_MODEL_NAME = "distilbert-base-uncased"
     EMBEDDING_DIM = 384  # Output dimension
     
     def __init__(self, model_name: str = None, device: str = "cpu"):
@@ -64,7 +84,9 @@ class HFPlaceRanker:
         self.model_name = model_name or self.MODEL_NAME
         self.device = device
         self.model = None
+        self.tokenizer = None
         self.model_loaded = False
+        self.encoder_type = None
         
         if HF_AVAILABLE:
             self._load_model()
@@ -72,16 +94,68 @@ class HFPlaceRanker:
             logger.warning("HF ranking not available. LightGBM will handle all ranking.")
     
     def _load_model(self):
-        """Load sentence-transformer model"""
-        try:
-            logger.info(f"Loading HuggingFace model: {self.model_name}")
-            self.model = SentenceTransformer(self.model_name, device=self.device)
-            self.model_loaded = True
-            logger.info(f"✓ HF model loaded ({self.EMBEDDING_DIM}D embeddings)")
-        except Exception as e:
-            logger.error(f"Failed to load HF model: {e}")
-            self.model = None
-            self.model_loaded = False
+        """Load encoder model (sentence-transformers preferred, transformers fallback)."""
+        if SENTENCE_TRANSFORMERS_AVAILABLE:
+            try:
+                logger.info(f"Loading HuggingFace model: {self.model_name}")
+                self.model = SentenceTransformer(self.model_name, device=self.device)
+                self.model_loaded = True
+                self.encoder_type = 'sentence_transformers'
+                logger.info(f"✓ HF sentence-transformers model loaded ({self.EMBEDDING_DIM}D embeddings)")
+                return
+            except Exception as e:
+                logger.warning(f"Failed to load sentence-transformers model: {e}. Trying transformers fallback.")
+
+        if TRANSFORMERS_ENCODER_AVAILABLE:
+            try:
+                logger.info(f"Loading transformers fallback model: {self.FALLBACK_MODEL_NAME}")
+                self.tokenizer = AutoTokenizer.from_pretrained(self.FALLBACK_MODEL_NAME)
+                self.model = AutoModel.from_pretrained(self.FALLBACK_MODEL_NAME)
+                self.model.eval()
+                self.model_loaded = True
+                self.encoder_type = 'transformers_fallback'
+                logger.info("✓ HF transformers fallback model loaded")
+                return
+            except Exception as e:
+                logger.error(f"Failed to load transformers fallback model: {e}")
+
+        self.model = None
+        self.tokenizer = None
+        self.model_loaded = False
+        self.encoder_type = None
+
+    def _encode_text(self, text: str) -> Optional[np.ndarray]:
+        """Encode text with whichever encoder backend is loaded."""
+        if not self.model_loaded:
+            return None
+
+        if self.encoder_type == 'sentence_transformers':
+            return self.model.encode(text, convert_to_numpy=True)
+
+        if self.encoder_type == 'transformers_fallback':
+            try:
+                encoded = self.tokenizer(
+                    text,
+                    padding=True,
+                    truncation=True,
+                    max_length=128,
+                    return_tensors='pt',
+                )
+                with torch.no_grad():
+                    outputs = self.model(**encoded)
+                    # Mean pooling over tokens with attention mask.
+                    token_embeddings = outputs.last_hidden_state
+                    attention_mask = encoded['attention_mask'].unsqueeze(-1)
+                    masked = token_embeddings * attention_mask
+                    summed = masked.sum(dim=1)
+                    counts = attention_mask.sum(dim=1).clamp(min=1)
+                    mean_pooled = summed / counts
+                return mean_pooled[0].cpu().numpy()
+            except Exception as e:
+                logger.error(f"Error encoding text with transformers fallback: {e}")
+                return None
+
+        return None
     
     def _build_user_text(
         self,
@@ -176,7 +250,7 @@ class HFPlaceRanker:
         
         try:
             user_text = self._build_user_text(user_mood, user_interests, user_budget, user_pace)
-            embedding = self.model.encode(user_text, convert_to_numpy=True)
+            embedding = self._encode_text(user_text)
             return embedding
         except Exception as e:
             logger.error(f"Error encoding user profile: {e}")
@@ -194,7 +268,7 @@ class HFPlaceRanker:
         
         try:
             place_text = self._build_place_text(place)
-            embedding = self.model.encode(place_text, convert_to_numpy=True)
+            embedding = self._encode_text(place_text)
             return embedding
         except Exception as e:
             logger.error(f"Error encoding place: {e}")
@@ -326,9 +400,17 @@ def create_hf_ranker(device: str = "cpu") -> Optional[HFPlaceRanker]:
     if not HF_AVAILABLE:
         logger.warning("HuggingFace not available, using only LightGBM")
         return None
+
+    cache_key = device or "cpu"
+    cached_ranker = _HF_RANKER_CACHE.get(cache_key)
+    if cached_ranker is not None:
+        return cached_ranker
     
     try:
-        return HFPlaceRanker(device=device)
+        ranker = HFPlaceRanker(device=device)
+        if ranker.model_loaded:
+            _HF_RANKER_CACHE[cache_key] = ranker
+        return ranker
     except Exception as e:
         logger.error(f"Failed to create HF ranker: {e}")
         return None
